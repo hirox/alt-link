@@ -1,4 +1,4 @@
-
+ï»¿
 #include "stdafx.h"
 #include "RemoteSerialProtocol.h"
 #include "Converter.h"
@@ -242,7 +242,7 @@ void RemoteSerialProtocol::packetReceived(const std::string& payload)
 	}
 	case 'P':	// write specific register
 	{
-		// TODO •¡”ƒŒƒWƒXƒ^‚ğw’è‚³‚ê‚é‚Æ‚¨‚©‚µ‚­‚È‚é
+		// TODO è¤‡æ•°ãƒ¬ã‚¸ã‚¹ã‚¿ã‚’æŒ‡å®šã•ã‚Œã‚‹ã¨ãŠã‹ã—ããªã‚‹
 		uint32_t n;
 		auto delimiter = Converter::extract(payload, 1, '=', false, &n);
 		uint32_t value = std::stoi(payload.substr(delimiter + 1), nullptr, 16);

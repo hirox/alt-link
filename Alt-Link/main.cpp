@@ -1,4 +1,4 @@
-
+﻿
 #include "stdafx.h"
 #include <stdint.h>
 
@@ -71,6 +71,12 @@ public:
 int _tmain(int argc, _TCHAR* argv[])
 {
 	static const uint16_t PORT = 1234;
+
+#if 0
+	CMSISDAP dap;
+	dap.initialize();
+	return 0;
+#endif
 
 	Poco::Net::ServerSocket socket(PORT);
 	socket.listen();
