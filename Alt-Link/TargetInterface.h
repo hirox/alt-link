@@ -7,6 +7,9 @@
 class TargetInterface
 {
 public:
+	virtual int32_t attach() = 0;
+	virtual void detach() = 0;
+
 	virtual void setTargetThreadId() = 0;
 	virtual void setCurrentPC(const uint64_t addr) = 0;
 

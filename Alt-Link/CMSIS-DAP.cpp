@@ -875,6 +875,17 @@ int32_t CMSISDAP::setSpeed(uint32_t speed)
 	return cmdSwjClock(speed);
 }
 
+int32_t CMSISDAP::attach()
+{
+	// TODO
+	return CMSISDAP_OK;
+}
+
+void CMSISDAP::detach()
+{
+	// TODO
+}
+
 void CMSISDAP::setTargetThreadId()
 {
 	// TODO

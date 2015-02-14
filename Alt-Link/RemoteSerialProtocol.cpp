@@ -8,6 +8,15 @@
 
 void RemoteSerialProtocol::processQuery(const std::string& payload)
 {
+	// Attach with first query packet
+	if (!attached)
+	{
+		if (targetInterface.attach() == OK)
+		{
+			attached = true;
+		}
+	}
+
 	if (payload.find("qSupported:") == 0)
 	{
 		// [TODO] fix it
@@ -310,6 +319,12 @@ void RemoteSerialProtocol::packetReceived(const std::string& payload)
 	case 'X':		// write memory (binary)
 	{
 		processWriteMemory(payload, true);
+		break;
+	}
+	case 'D':
+	{
+		targetInterface.detach();
+		sendOK();
 		break;
 	}
 	case 'z':

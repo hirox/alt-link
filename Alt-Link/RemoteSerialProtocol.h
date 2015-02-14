@@ -9,7 +9,7 @@
 class RemoteSerialProtocol : public PacketTransfer
 {
 public:
-	explicit RemoteSerialProtocol(TargetInterface& interface) : targetInterface(interface) {}
+	explicit RemoteSerialProtocol(TargetInterface& interface) : targetInterface(interface), attached(false) {}
 
 private:
 	virtual void requestResend();
@@ -33,6 +33,7 @@ private:
 	std::string lastPacket;
 	TargetInterface& targetInterface;
 	std::map<char, int32_t> threadId;
+	bool attached;
 
 protected:
 	virtual int32_t send(const std::string& data) = 0;
