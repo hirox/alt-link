@@ -19,7 +19,7 @@ private:
 
 	void processQuery(const std::string& payload);
 	void processBreakWatchPoint(const std::string& payload);
-	void processBinaryTransfer(const std::string& payload);
+	void processWriteMemory(const std::string& payload, bool isBinary = false);
 
 	int32_t sendAck();
 	int32_t sendNack();

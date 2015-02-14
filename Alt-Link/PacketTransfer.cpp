@@ -34,7 +34,7 @@ void PacketTransfer::push(std::string& data)
 {
 	buffer += data;
 
-	std::regex rePacket("^\\$([^\\$\\#]+)#([0-9a-fA-F][0-9a-fA-F])");
+	std::regex rePacket("^\\$([^\\$\\#]+?)#([0-9a-fA-F][0-9a-fA-F])");
 	std::smatch match;
 
 	while (1)
@@ -59,7 +59,7 @@ void PacketTransfer::push(std::string& data)
 			printf("interrupt received!\n");
 			interruptReceived();
 		}
-		else if (std::regex_match(buffer, match, rePacket))
+		else if (std::regex_search(buffer, match, rePacket))
 		{
 			std::string payload = match[1];
 			std::string hexCheckSum = match[2];
@@ -73,7 +73,13 @@ void PacketTransfer::push(std::string& data)
 			}
 			else
 			{
-				printf("packet received! (%s)\n", payload.c_str());
+				printf("packet received! (%s)\n", [payload]() -> std::string
+				{
+					if (std::regex_search(payload, std::regex("[^[:print:]]")))
+						return std::string(1, payload[0]) + " [BINARY]";
+					else
+						return payload;
+				}().c_str());
 				packetReceived(unescape(payload));
 			}
 		}
@@ -118,6 +124,7 @@ std::string PacketTransfer::unescape(const std::string data)
 		if (escaped)
 		{
 			unescaped.append(1, c ^ 0x20);
+			escaped = false;
 		}
 		else
 		{

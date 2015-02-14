@@ -135,9 +135,39 @@ void RemoteSerialProtocol::processBreakWatchPoint(const std::string& payload)
 	}
 }
 
-void RemoteSerialProtocol::processBinaryTransfer(const std::string& payload)
+void RemoteSerialProtocol::processWriteMemory(const std::string& payload, bool isBinary)
 {
-	sendNotSupported();
+	uint64_t addr;
+	uint32_t len;
+	auto delimiter1 = Converter::extract(payload, 1, ',', false, &addr);
+	if (delimiter1 != payload.npos)
+	{
+		auto delimiter2 = Converter::extract(payload, delimiter1 + 1, ':', false, &len);
+		if (delimiter2 != payload.npos)
+		{
+			std::string data = payload.substr(delimiter2 + 1);
+			std::vector<uint8_t> buffer;
+			if (isBinary)
+			{
+				std::copy(data.begin(), data.end(), std::back_inserter(buffer));
+			}
+			else
+			{
+				buffer = Converter::toByteArray(data);
+			}
+			if (buffer.size() != len)
+			{
+				sendOKorError(0x01);
+			}
+			else
+			{
+				sendOKorError(targetInterface.writeMemory(addr, len, buffer));
+			}
+			return;
+		}
+	}
+	sendOKorError(0x01);
+	return;
 }
 
 void RemoteSerialProtocol::interruptReceived()
@@ -276,25 +306,12 @@ void RemoteSerialProtocol::packetReceived(const std::string& payload)
 	}
 	case 'M':		// write memory
 	{
-		uint64_t addr;
-		uint32_t len;
-		auto delimiter1 = Converter::extract(payload, 1, ',', false, &addr);
-		if (delimiter1 != payload.npos)
-		{
-			auto delimiter2 = Converter::extract(payload, delimiter1 + 1, ':', false, &len);
-			if (delimiter2 != payload.npos)
-			{
-				std::string hex = payload.substr(delimiter2 + 1);
-				sendOKorError(targetInterface.writeMemory(addr, len, Converter::toByteArray(hex)));
-				break;
-			}
-		}
-		sendOKorError(0x01);
+		processWriteMemory(payload, false);
 		break;
 	}
-	case 'X':
+	case 'X':		// write memory (binary)
 	{
-		processBinaryTransfer(payload);
+		processWriteMemory(payload, true);
 		break;
 	}
 	case 'z':

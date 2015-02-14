@@ -45,8 +45,7 @@ public:
 				bytes = socket().receiveBytes(buffer, BUFFER_SIZE);
 				if (bytes)
 				{
-					buffer[bytes] = 0;
-					std::string str(buffer);
+					std::string str(buffer, bytes);
 					rsp.push(str);
 				}
 			}
