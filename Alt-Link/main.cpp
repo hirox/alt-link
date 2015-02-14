@@ -17,7 +17,7 @@ class TCPConnection : public Poco::Net::TCPServerConnection
 		TCPConnection& connection;
 		CMSISDAP dap;
 
-		int32_t send(const std::string packet)
+		int32_t send(const std::string& packet)
 		{
 			printf("send (%s)\n", packet.c_str());
 			return connection.socket().sendBytes(packet.c_str(), packet.length());

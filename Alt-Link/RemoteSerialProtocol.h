@@ -23,15 +23,17 @@ private:
 
 	int32_t sendAck();
 	int32_t sendNack();
+	int32_t sendOK();
+	int32_t sendError(uint8_t error = 0x01);
 	int32_t sendOKorError(uint8_t error);
 	int32_t sendNotSupported();
 	int32_t resend();
-	int32_t sendPacket(const std::string packet);
+	int32_t sendPacket(const std::string& packet);
 
 	std::string lastPacket;
 	TargetInterface& targetInterface;
 	std::map<char, int32_t> threadId;
 
 protected:
-	virtual int32_t send(const std::string data) = 0;
+	virtual int32_t send(const std::string& data) = 0;
 };
