@@ -10,6 +10,7 @@ void RemoteSerialProtocol::processQuery(const std::string& payload)
 {
 	if (payload.find("qSupported:") == 0)
 	{
+		// [TODO] fix it
 		std::string packet = makePacket("PacketSize=3fff;Qbtrace:off-;Qbtrace:bts-");
 		sendPacket(packet);
 	}
@@ -22,16 +23,16 @@ void RemoteSerialProtocol::processQuery(const std::string& payload)
 	else if (payload.find("qOffsets") == 0)
 	{
 		// relocation information
+		// [TODO] fix it
 		sendPacket(makePacket("Text=0;Data=0;Bss=0"));
 	}
 	else if (payload.find("qSymbol:") == 0)
 	{
-		sendOKorError(0x00);
+		sendOK();
 	}
 	else if (payload == "qC")
 	{
-		std::string packet = makePacket("QC-1");
-		sendPacket(packet);
+		sendPacket(makePacket("QC-1"));
 	}
 	else if (payload.find("qAttached") == 0)
 	{
@@ -60,7 +61,7 @@ void RemoteSerialProtocol::processBreakWatchPoint(const std::string& payload)
 {
 	if (payload[2] != ',')
 	{
-		sendOKorError(0x01);
+		sendError();
 		return;
 	}
 
@@ -69,7 +70,7 @@ void RemoteSerialProtocol::processBreakWatchPoint(const std::string& payload)
 
 	if (delimiter1 == payload.npos)
 	{
-		sendOKorError(0x01);
+		sendError();
 	}
 
 	int32_t kind;
@@ -157,7 +158,7 @@ void RemoteSerialProtocol::processWriteMemory(const std::string& payload, bool i
 			}
 			if (buffer.size() != len)
 			{
-				sendOKorError(0x01);
+				sendError();
 			}
 			else
 			{
@@ -166,7 +167,7 @@ void RemoteSerialProtocol::processWriteMemory(const std::string& payload, bool i
 			return;
 		}
 	}
-	sendOKorError(0x01);
+	sendError();
 	return;
 }
 
@@ -179,7 +180,8 @@ void RemoteSerialProtocol::interruptReceived()
 
 	if (result == 0)
 	{
-		sendPacket("T050B:EC3D0040;0D:E03D0040;0F:D8070040;"/*"S" + Converter::toHex(signal)*/);
+		//"T050B:EC3D0040;0D:E03D0040;0F:D8070040;"
+		sendPacket(makePacket("S" + Converter::toHex(signal)));
 	}
 }
 
@@ -196,8 +198,7 @@ void RemoteSerialProtocol::packetReceived(const std::string& payload)
 	}
 	case '?':
 	{
-		std::string packet = makePacket("S05");
-		sendPacket(packet);
+		sendPacket(makePacket("S05"));
 		break;
 	}
 	case 'c':
@@ -217,14 +218,13 @@ void RemoteSerialProtocol::packetReceived(const std::string& payload)
 		}
 		uint8_t signal;
 		uint8_t result = targetInterface.step(&signal);
-		sendPacket("S" + Converter::toHex(signal));
+		sendPacket(makePacket("S" + Converter::toHex(signal)));
 		break;
 	}
 	case 'H':
 	{
 		threadId[payload[1]] = std::stoi(payload.substr(2), nullptr, 16);
-		std::string packet = makePacket("OK");
-		sendPacket(packet);
+		sendOK();
 		break;
 	}
 	case 'g':	// read general registers
@@ -237,7 +237,7 @@ void RemoteSerialProtocol::packetReceived(const std::string& payload)
 		}
 		else
 		{
-			sendOKorError(0x01);
+			sendError();
 		}
 		break;
 	}
@@ -246,11 +246,11 @@ void RemoteSerialProtocol::packetReceived(const std::string& payload)
 		std::vector<uint32_t> array = Converter::toUInt32Array(payload.substr(1));
 		if (targetInterface.writeGenericRegisters(array) == OK)
 		{
-			sendOKorError(0x00);
+			sendOK();
 		}
 		else
 		{
-			sendOKorError(0x01);
+			sendError();
 		}
 		break;
 	}
@@ -261,12 +261,11 @@ void RemoteSerialProtocol::packetReceived(const std::string& payload)
 		uint32_t value;
 		if (targetInterface.readRegister(n, &value) == OK)
 		{
-			std::string packet = makePacket(Converter::toHex(value));
-			sendPacket(packet);
+			sendPacket(makePacket(Converter::toHex(value)));
 		}
 		else
 		{
-			sendOKorError(0x01);
+			sendError();
 		}
 		break;
 	}
@@ -279,11 +278,11 @@ void RemoteSerialProtocol::packetReceived(const std::string& payload)
 
 		if (targetInterface.writeRegister(n, value) == OK)
 		{
-			sendOKorError(0x00);
+			sendOK();
 		}
 		else
 		{
-			sendOKorError(0x01);
+			sendError();
 		}
 		break;
 	}
@@ -297,11 +296,10 @@ void RemoteSerialProtocol::packetReceived(const std::string& payload)
 		{
 			std::vector<uint8_t> array;
 			targetInterface.readMemory(addr, len, &array);
-			std::string packet = makePacket(Converter::toHex(array));
-			sendPacket(packet);
+			sendPacket(makePacket(Converter::toHex(array)));
 			break;
 		}
-		sendOKorError(0x01);
+		sendError();
 		break;
 	}
 	case 'M':		// write memory
@@ -345,6 +343,17 @@ int32_t RemoteSerialProtocol::sendNack()
 	return send("-");
 }
 
+int32_t RemoteSerialProtocol::sendOK()
+{
+	return sendOKorError(0x00);
+}
+
+int32_t RemoteSerialProtocol::sendError(uint8_t error)
+{
+	ASSERT_RELEASE(error != 0x00);
+	return sendOKorError(error);
+}
+
 int32_t RemoteSerialProtocol::sendOKorError(uint8_t error)
 {
 	std::string packet;
@@ -371,7 +380,7 @@ int32_t RemoteSerialProtocol::resend()
 	return sendPacket(lastPacket);
 }
 
-int32_t RemoteSerialProtocol::sendPacket(const std::string packet)
+int32_t RemoteSerialProtocol::sendPacket(const std::string& packet)
 {
 	lastPacket = packet;
 	return send(packet);
