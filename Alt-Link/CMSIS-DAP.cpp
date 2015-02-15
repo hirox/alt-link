@@ -1041,6 +1041,18 @@ uint8_t CMSISDAP::writeMemory(uint64_t addr, uint32_t len, const std::vector<uin
 	return 0;
 }
 
+int32_t CMSISDAP::monitor(const std::string command, std::string* output)
+{
+	ASSERT_RELEASE(output != nullptr);
+
+	printf("monitor [%s]\n", command.c_str());
+
+	// TODO
+	(void)command;
+	(void)output;
+	return 0;
+}
+
 int32_t CMSISDAP::dpRead(uint32_t reg, uint32_t *data)
 {
 	int ret;

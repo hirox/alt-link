@@ -31,8 +31,8 @@ public:
 		return stream.str();
 	}
 
-	static std::vector<uint8_t> toByteArray(const std::string hex);
-	static std::vector<uint32_t> toUInt32Array(const std::string hex);
+	static std::vector<uint8_t> toByteArray(const std::string& hex);
+	static std::vector<uint32_t> toUInt32Array(const std::string& hex);
 	
 	static void toInteger(const std::string hex, int32_t* out);
 	static void toInteger(const std::string hex, uint32_t* out);

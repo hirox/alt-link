@@ -62,6 +62,8 @@ public:
 	virtual void readMemory(uint64_t addr, uint32_t len, std::vector<uint8_t>* array);
 	virtual uint8_t writeMemory(uint64_t addr, uint32_t len, const std::vector<uint8_t>& array);
 
+	virtual int32_t monitor(const std::string command, std::string* output);
+
 	int32_t CMSISDAP::initialize(void);
 	int32_t CMSISDAP::finalize(void);
 	int32_t CMSISDAP::resetSw(void);

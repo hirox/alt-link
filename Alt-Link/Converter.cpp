@@ -16,33 +16,35 @@ void Converter::put(std::stringstream& stream, uint8_t data)
 	stream << std::setfill('0') << std::setw(2) << std::hex << (unsigned)data;
 }
 
-std::vector<uint8_t> Converter::toByteArray(const std::string hex)
+template <typename T>
+static void toArray(const std::string& hex, T* output)
 {
-	std::istringstream stream(hex);
-	stream >> std::hex;
+	std::stringstream stream;
 
-	std::vector<uint8_t> array;
-	while (stream)
+	uint32_t offset = 0;
+	const uint32_t value_length = sizeof(T::value_type) * 2;
+	while (offset < hex.length())
 	{
-		uint8_t data;
-		stream >> data;
-		array.push_back(data);
+		uint64_t data;
+		stream << std::hex << hex.substr(offset, value_length);
+		stream >> std::hex >> data;
+		stream.clear();
+		output->push_back(static_cast<T::value_type>(data));
+		offset += value_length;
 	}
+}
+
+std::vector<uint8_t> Converter::toByteArray(const std::string& hex)
+{
+	std::vector<uint8_t> array;
+	toArray(hex, &array);
 	return array;
 }
 
-std::vector<uint32_t> Converter::toUInt32Array(const std::string hex)
+std::vector<uint32_t> Converter::toUInt32Array(const std::string& hex)
 {
-	std::istringstream stream(hex);
-	stream >> std::hex;
-
 	std::vector<uint32_t> array;
-	while (stream)
-	{
-		uint32_t data;
-		stream >> data;
-		array.push_back(data);
-	}
+	toArray(hex, &array);
 	return array;
 }
 

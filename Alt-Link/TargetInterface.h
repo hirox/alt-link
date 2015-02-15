@@ -45,4 +45,6 @@ public:
 
 	virtual void readMemory(uint64_t addr, uint32_t len, std::vector<uint8_t>* array) = 0;
 	virtual uint8_t writeMemory(uint64_t addr, uint32_t len, const std::vector<uint8_t>& array) = 0;
+
+	virtual int32_t monitor(const std::string command, std::string* output) = 0;
 };

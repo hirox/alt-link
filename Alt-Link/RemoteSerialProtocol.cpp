@@ -48,11 +48,28 @@ void RemoteSerialProtocol::processQuery(const std::string& payload)
 		std::string packet = makePacket("1");
 		sendPacket(packet);
 	}
-	else if (payload.find("qRcmd") == 0)
+	else if (payload.find("qRcmd") == 0)	// Remote command
 	{
-		// TODO
-		// remote command (CMSIS-DAP?)
-		sendNotSupported();
+		std::vector<uint8_t> array = Converter::toByteArray(payload.substr(6));
+		std::string command(array.begin(), array.end());
+
+		std::string output;
+		int32_t result = targetInterface.monitor(command, &output);
+		if (result == OK)
+		{
+			if (output.size() == 0)
+			{
+				sendOK();
+			}
+			else
+			{
+				sendPacket(makePacket(output));
+			}
+		}
+		else
+		{
+			sendError(result);
+		}
 	}
 	else if (payload.find("qXfer") == 0)
 	{
