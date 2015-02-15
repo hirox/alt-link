@@ -20,7 +20,7 @@ void RemoteSerialProtocol::processQuery(const std::string& payload)
 	if (payload.find("qSupported:") == 0)
 	{
 		// [TODO] fix it
-		std::string packet = makePacket("PacketSize=3fff;Qbtrace:off-;Qbtrace:bts-");
+		auto packet = makePacket("PacketSize=3fff;Qbtrace:off-;Qbtrace:bts-");
 		sendPacket(packet);
 	}
 	else if (payload.find("qTStatus") == 0)
@@ -45,7 +45,7 @@ void RemoteSerialProtocol::processQuery(const std::string& payload)
 	}
 	else if (payload.find("qAttached") == 0)
 	{
-		std::string packet = makePacket("1");
+		auto packet = makePacket("1");
 		sendPacket(packet);
 	}
 	else if (payload.find("qRcmd") == 0)	// Remote command
@@ -258,7 +258,7 @@ void RemoteSerialProtocol::packetReceived(const std::string& payload)
 		std::vector<uint32_t> array;
 		if (targetInterface.readGenericRegisters(&array) == OK)
 		{
-			std::string packet = makePacket(Converter::toHex(array));
+			auto packet = makePacket(Converter::toHex(array));
 			sendPacket(packet);
 		}
 		else
@@ -388,7 +388,7 @@ int32_t RemoteSerialProtocol::sendError(uint8_t error)
 
 int32_t RemoteSerialProtocol::sendOKorError(uint8_t error)
 {
-	std::string packet;
+	PacketTransfer::Packet packet;
 
 	if (error == 0)
 	{
@@ -403,7 +403,7 @@ int32_t RemoteSerialProtocol::sendOKorError(uint8_t error)
 
 int32_t RemoteSerialProtocol::sendNotSupported()
 {
-	std::string packet = makePacket("");
+	auto packet = makePacket("");
 	return sendPacket(packet);
 }
 
@@ -412,8 +412,8 @@ int32_t RemoteSerialProtocol::resend()
 	return sendPacket(lastPacket);
 }
 
-int32_t RemoteSerialProtocol::sendPacket(const std::string& packet)
+int32_t RemoteSerialProtocol::sendPacket(const PacketTransfer::Packet& packet)
 {
 	lastPacket = packet;
-	return send(packet);
+	return send(packet.toString());
 }

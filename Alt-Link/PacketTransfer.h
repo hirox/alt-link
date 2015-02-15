@@ -11,7 +11,17 @@ public:
 	virtual ~PacketTransfer() {}
 
 protected:
-	std::string makePacket(const std::string& payload);
+	class Packet
+	{
+	public:
+		Packet() {}
+		explicit Packet(std::string& d) : data(d) {}
+		std::string toString() const { return data; }
+
+	private:
+		std::string data;
+	};
+	Packet makePacket(const std::string& payload);
 
 	virtual void requestResend() = 0;
 	virtual void errorPacketReceived() = 0;

@@ -90,10 +90,10 @@ void PacketTransfer::push(std::string& data)
 	}
 }
 
-std::string PacketTransfer::makePacket(const std::string& payload)
+PacketTransfer::Packet PacketTransfer::makePacket(const std::string& payload)
 {
 	std::string escaped = escape(payload);
-	return "$" + escaped + "#" + Converter::toHex(checkSum.get(escaped));
+	return Packet("$" + escaped + "#" + Converter::toHex(checkSum.get(escaped)));
 }
 
 std::string PacketTransfer::escape(const std::string data)

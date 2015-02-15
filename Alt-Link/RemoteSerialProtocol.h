@@ -28,9 +28,9 @@ private:
 	int32_t sendOKorError(uint8_t error);
 	int32_t sendNotSupported();
 	int32_t resend();
-	int32_t sendPacket(const std::string& packet);
+	int32_t sendPacket(const PacketTransfer::Packet& packet);
 
-	std::string lastPacket;
+	PacketTransfer::Packet lastPacket;
 	TargetInterface& targetInterface;
 	std::map<char, int32_t> threadId;
 	bool attached;
