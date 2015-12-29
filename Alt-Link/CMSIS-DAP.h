@@ -31,6 +31,9 @@
 #define CMSISDAP_ERR_USBHID_TIMEOUT				11
 #define CMSISDAP_ERR_USBHID_EXIT				12
 
+#define CONFIRM_SIZE(typeA, typeB) sizeof(typeA) == sizeof(typeB), "sizeof(" #typeA ") should be same as sizeof(" #typeB ")"
+#define CONFIRM_UINT32(type) CONFIRM_SIZE(type, uint32_t)
+
 class CMSISDAP : public TargetInterface
 {
 public:
@@ -189,5 +192,61 @@ private:
 	private:
 		AP& ap;
 		uint32_t index;
+	};
+
+	class ROM_TABLE
+	{
+	public:
+		ROM_TABLE(MEM_AP& a, uint32_t b) : ap(a), base(b) {}
+		int32_t read();
+
+	private:
+		union CID
+		{
+			struct
+			{
+				uint32_t Preamble0		: 12;
+				uint32_t ComponentClass	: 4;
+				uint32_t Preamble1		: 16;
+			};
+			struct
+			{
+				uint8_t uint8[4];
+			};
+			uint32_t raw;
+		};
+		static_assert(CONFIRM_SIZE(CID, uint32_t));
+		
+		union PID
+		{
+			struct
+			{
+				uint32_t PART				: 12;
+				uint32_t JEP106ID			: 7;
+				uint32_t JEDEC				: 1;
+				uint32_t REVISION			: 4;
+				uint32_t CMOD				: 4;
+				uint32_t REVAND				: 4;
+				uint32_t JEP106CONTINUATION	: 4;
+				uint32_t SIZE				: 4;
+				uint32_t RES0				: 24;
+			};
+			struct
+			{
+				uint8_t uint8[8];
+			};
+			uint64_t raw;
+		};
+		static_assert(CONFIRM_SIZE(PID, uint64_t));
+
+	private:
+		MEM_AP& ap;
+		uint32_t base;
+
+		CID cid;
+		PID pid;
+		
+		int32_t readPid();
+		int32_t readCid();
 	};
 };

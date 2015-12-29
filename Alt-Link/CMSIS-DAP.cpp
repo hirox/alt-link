@@ -126,8 +126,6 @@ static inline uint32_t buf2LE32(const uint8_t *buf)
 
 #pragma pack(push,1)
 
-#define CONFIRM_UINT32(type) sizeof(type) == sizeof(uint32_t), "sizeof(" #type ") should be same as sizeof(uint32_t)"
-
 union DP_IDCODE
 {
 	struct
@@ -1080,7 +1078,10 @@ int32_t CMSISDAP::initialize(void)
 				cpuid.PartNo == 0xC24 ? "Cortex-M4" :
 				cpuid.PartNo == 0xC27 ? "Cortex-M7" :
 				cpuid.PartNo == 0xC60 ? "Cortex-M0+" : "UNKNOWN");
-				_DBGPRT("      Revision     : r%xp%x\n", cpuid.Variant, cpuid.Revision);
+			_DBGPRT("      Revision     : r%xp%x\n", cpuid.Variant, cpuid.Revision);
+
+			ROM_TABLE table(memap, base & 0xFFFFF000);
+			table.read();
 		}
 	}
 
@@ -1443,6 +1444,8 @@ int32_t CMSISDAP::MEM_AP::read(uint32_t addr, uint32_t *data)
 	if (ret != CMSISDAP_OK) {
 		return ret;
 	}
+
+	return CMSISDAP_OK;
 }
 
 int32_t CMSISDAP::MEM_AP::write(uint32_t addr, uint32_t val)
@@ -1456,4 +1459,180 @@ int32_t CMSISDAP::MEM_AP::write(uint32_t addr, uint32_t val)
 	if (ret != CMSISDAP_OK) {
 		return ret;
 	}
+
+	return CMSISDAP_OK;
+}
+
+int32_t CMSISDAP::ROM_TABLE::readCid()
+{
+	int ret;
+	uint32_t data;
+	
+	cid.raw = 0;
+
+	ret = ap.read(base + 0xFF0, &data);
+	if (ret != CMSISDAP_OK)
+		return ret;
+	cid.uint8[0] = data;
+
+	ret = ap.read(base + 0xFF4, &data);
+	if (ret != CMSISDAP_OK)
+		return ret;
+	cid.uint8[1] = data;
+
+	ret = ap.read(base + 0xFF8, &data);
+	if (ret != CMSISDAP_OK)
+		return ret;
+	cid.uint8[2] = data;
+
+	ret = ap.read(base + 0xFFC, &data);
+	if (ret != CMSISDAP_OK)
+		return ret;
+	cid.uint8[3] = data;
+
+	_DBGPRT("    CID     : 0x%08x\n", cid.raw);
+	_DBGPRT("      Class : %s\n",
+		cid.ComponentClass == 0x0 ? "Generic verification component" :
+		cid.ComponentClass == 0x1 ? "ROM Table" :
+		cid.ComponentClass == 0x9 ? "Debug component" :
+		cid.ComponentClass == 0xB ? "Peripheral Test Block" :
+		cid.ComponentClass == 0xD ? "OptimoDE Data Engine SubSystem(DESS) component" :
+		cid.ComponentClass == 0xE ? "Generic IP component" :
+		cid.ComponentClass == 0xF ? "PrimeCell peripheral" : "UNKNOWN");
+
+	return CMSISDAP_OK;
+}
+
+int32_t CMSISDAP::ROM_TABLE::readPid()
+{
+	int ret;
+	uint32_t data;
+	
+	pid.raw = 0;
+
+	ret = ap.read(base + 0xFE0, &data);
+	if (ret != CMSISDAP_OK)
+		return ret;
+	pid.uint8[0] = data;
+
+	ret = ap.read(base + 0xFE4, &data);
+	if (ret != CMSISDAP_OK)
+		return ret;
+	pid.uint8[1] = data;
+
+	ret = ap.read(base + 0xFE8, &data);
+	if (ret != CMSISDAP_OK)
+		return ret;
+	pid.uint8[2] = data;
+
+	ret = ap.read(base + 0xFEC, &data);
+	if (ret != CMSISDAP_OK)
+		return ret;
+	pid.uint8[3] = data;
+
+	ret = ap.read(base + 0xFD0, &data);
+	if (ret != CMSISDAP_OK)
+		return ret;
+	pid.uint8[4] = data;
+
+	_DBGPRT("    PID                 : 0x%016llx\n", pid.raw);
+	_DBGPRT("      Part number       : %x\n", pid.PART);
+	if (pid.JEDEC)
+	{
+		_DBGPRT("      Designer          : %s (JEP106 CONT.:%x, ID:%x)\n",
+			pid.JEP106CONTINUATION == 0x0 && pid.JEP106ID == 0x01 ? "AMD" :
+			pid.JEP106CONTINUATION == 0x0 && pid.JEP106ID == 0x0E ? "Freescale(Motorola)" :
+			pid.JEP106CONTINUATION == 0x0 && pid.JEP106ID == 0x15 ? "NXP(Philips)" :
+			pid.JEP106CONTINUATION == 0x0 && pid.JEP106ID == 0x17 ? "Texas Instruments" :
+			pid.JEP106CONTINUATION == 0x0 && pid.JEP106ID == 0x20 ? "STMicroelectronics" :
+			pid.JEP106CONTINUATION == 0x0 && pid.JEP106ID == 0x21 ? "Lattice Semi." :
+			pid.JEP106CONTINUATION == 0x0 && pid.JEP106ID == 0x34 ? "Cypress" :
+			pid.JEP106CONTINUATION == 0x0 && pid.JEP106ID == 0x48 ? "Apple Computer" :
+			pid.JEP106CONTINUATION == 0x0 && pid.JEP106ID == 0x49 ? "Xilinx" :
+			pid.JEP106CONTINUATION == 0x4 && pid.JEP106ID == 0x3B ? "ARM" :
+			"UNKNOWN",
+			pid.JEP106CONTINUATION, pid.JEP106ID);
+	}
+	_DBGPRT("      Revision          : %x\n", pid.REVISION);
+	_DBGPRT("      Manufacturer Rev. : %x\n", pid.REVAND);
+	_DBGPRT("      Customer modified : %x\n", pid.CMOD);
+	_DBGPRT("      Size              : %dKB\n", 4 << pid.SIZE);
+
+	return CMSISDAP_OK;
+}
+
+int32_t CMSISDAP::ROM_TABLE::read()
+{
+	int ret;
+	uint32_t data;
+	uint32_t addr = base;
+
+	_DBGPRT("ROM_TABLE\n");
+	_DBGPRT("  Base    : 0x%08x\n", addr);
+
+	ret = ap.read(addr + 0xFCC, &data);
+	if (ret != CMSISDAP_OK)
+		return ret;
+	_DBGPRT("    MEMTYPE : %s\n", data ? "SYSMEM is present" : "SYSMEM is NOT present");
+
+	ret = readPid();
+	if (ret != CMSISDAP_OK)
+		return ret;
+
+	ret = readCid();
+	if (ret != CMSISDAP_OK)
+		return ret;
+
+	if (cid.ComponentClass != 0x1)
+		return CMSISDAP_OK;
+
+	union ENTRY
+	{
+		struct
+		{
+			uint32_t PRESENT				: 1;
+			uint32_t FORMAT					: 1;
+			uint32_t PWR_DOMAIN_ID_VAILD	: 1;
+			uint32_t RESERVED0				: 1;
+			uint32_t PWR_DOMAIN_ID			: 5;
+			uint32_t RESERVED1				: 3;
+			uint32_t ADDRESS_OFFSET			: 24;
+		};
+		uint32_t raw;
+		uint32_t addr() { return raw & 0xFFFFF000; }
+	};
+
+	while (1)
+	{
+		ENTRY entry;
+		ret = ap.read(addr, &entry.raw);
+		if (ret != CMSISDAP_OK)
+			return ret;
+
+		if (entry.raw == 0x00)
+			break;
+
+		_DBGPRT("  ENTRY          : 0x%08x\n", entry.raw);
+		if (entry.FORMAT)
+		{
+			_DBGPRT("    Present      : %s\n", entry.PRESENT ? "yes" : "no");
+			if (entry.PWR_DOMAIN_ID_VAILD)
+				_DBGPRT("    Power Domain ID : %s\n", entry.PWR_DOMAIN_ID);
+
+			if (entry.PRESENT && entry.addr() != 0)
+			{
+				_DBGPRT("-> CHILD\n");
+				ROM_TABLE child(ap, base + entry.addr());
+				child.read();
+				_DBGPRT("<-\n");
+			}
+		}
+		else
+		{
+			_DBGPRT("    Not ROM Table format\n");
+		}
+		addr += 4;
+	}
+
+	return CMSISDAP_OK;
 }
