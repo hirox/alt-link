@@ -37,10 +37,6 @@ static inline uint32_t buf2LE32(const uint8_t *buf)
 #define _INFO_CAPSJTAG 0x02
 #define _INFO_CAPSBOTH (_INFO_CAPSSWD | _INFO_CAPSJTAG)
 
-/* CMD_LED */
-#define _LED_CONNECT 0
-#define _LED_RUNNING 1
-
 /* CMD_CONNECT */
 #define _CONNECT_IF_DEFAULT 0x00
 #define _CONNECT_IF_SWD 0x01
@@ -234,7 +230,7 @@ static_assert(sizeof(AP_IDR) == sizeof(uint32_t), "sizeof(AP_IDR) should be same
 #define CSW_SPROT (1UL << 30)
 #define CSW_DBGSWENABLE (1UL << 31)
 
-int32_t CMSISDAP::usbOpen(void)
+int32_t CMSISDAP::DAP::usbOpen(void)
 {
 	struct hid_device_info *info;
 	struct hid_device_info *infoCur;
@@ -297,7 +293,7 @@ int32_t CMSISDAP::usbOpen(void)
 	return CMSISDAP_OK;
 }
 
-int32_t CMSISDAP::usbClose(void)
+int32_t CMSISDAP::DAP::usbClose(void)
 {
 	(void)hid_close(hidHandle);
 	if (hid_exit() != 0)
@@ -307,7 +303,7 @@ int32_t CMSISDAP::usbClose(void)
 	return CMSISDAP_OK;
 }
 
-int32_t CMSISDAP::usbTx(uint32_t txlen)
+int32_t CMSISDAP::DAP::usbTx(uint32_t txlen)
 {
 	int ret;
 #if USE_USB_TX_DBG
@@ -341,7 +337,7 @@ int32_t CMSISDAP::usbTx(uint32_t txlen)
 	return CMSISDAP_OK;
 }
 
-int32_t CMSISDAP::cmdInfoCapabilities(void)
+int32_t CMSISDAP::DAP::cmdInfoCapabilities(void)
 {
 	int ret;
 	uint32_t idx = 0;
@@ -364,14 +360,14 @@ int32_t CMSISDAP::cmdInfoCapabilities(void)
 	return CMSISDAP_OK;
 }
 
-int32_t CMSISDAP::cmdLed(uint8_t led, uint8_t on)
+int32_t CMSISDAP::DAP::cmdLed(LED led, bool on)
 {
 	int ret;
 	uint32_t idx = 0;
 	packetBuf[idx++] = _USB_HID_REPORT_NUM;
 	packetBuf[idx++] = CMD_LED;
 	packetBuf[idx++] = led;
-	packetBuf[idx++] = !!(on);
+	packetBuf[idx++] = on ? 1 : 0;
 	ret = usbTx(idx);
 	if (ret != CMSISDAP_OK) {
 		_DBGPRT("err ret=%08x %s %s %d\n", ret, __FUNCTION__, __FILE__, __LINE__);
@@ -384,7 +380,7 @@ int32_t CMSISDAP::cmdLed(uint8_t led, uint8_t on)
 	return ret;
 }
 
-int32_t CMSISDAP::cmdConnect(void)
+int32_t CMSISDAP::DAP::cmdConnect(void)
 {
 	int ret;
 	uint32_t idx = 0;
@@ -405,7 +401,7 @@ int32_t CMSISDAP::cmdConnect(void)
 	return CMSISDAP_OK;
 }
 
-int32_t CMSISDAP::cmdDisconnect(void)
+int32_t CMSISDAP::DAP::cmdDisconnect(void)
 {
 	int ret;
 	uint32_t idx = 0;
@@ -427,7 +423,7 @@ int32_t CMSISDAP::cmdDisconnect(void)
 	return ret;
 }
 
-int32_t CMSISDAP::cmdTxConf(uint8_t idle, uint16_t delay, uint16_t retry)
+int32_t CMSISDAP::DAP::cmdTxConf(uint8_t idle, uint16_t delay, uint16_t retry)
 {
 	int ret;
 	uint32_t idx = 0;
@@ -454,7 +450,7 @@ int32_t CMSISDAP::cmdTxConf(uint8_t idle, uint16_t delay, uint16_t retry)
 	return ret;
 }
 
-int32_t CMSISDAP::cmdInfoFwVer(void)
+int32_t CMSISDAP::DAP::cmdInfoFwVer(void)
 {
 	int ret;
 	uint32_t idx = 0;
@@ -477,7 +473,7 @@ int32_t CMSISDAP::cmdInfoFwVer(void)
 	return CMSISDAP_OK;
 }
 
-int32_t CMSISDAP::cmdInfoVendor(void)
+int32_t CMSISDAP::DAP::cmdInfoVendor(void)
 {
 	int ret;
 	uint32_t idx = 0;
@@ -503,7 +499,7 @@ int32_t CMSISDAP::cmdInfoVendor(void)
 	return CMSISDAP_OK;
 }
 
-int32_t CMSISDAP::cmdInfoName(void)
+int32_t CMSISDAP::DAP::cmdInfoName(void)
 {
 	int ret;
 	uint32_t idx = 0;
@@ -529,7 +525,7 @@ int32_t CMSISDAP::cmdInfoName(void)
 	return CMSISDAP_OK;
 }
 
-int32_t CMSISDAP::cmdInfoPacketSize(void)
+int32_t CMSISDAP::DAP::cmdInfoPacketSize(void)
 {
 	int ret;
 	uint16_t size;
@@ -566,7 +562,7 @@ int32_t CMSISDAP::cmdInfoPacketSize(void)
 	return CMSISDAP_OK;
 }
 
-int32_t CMSISDAP::cmdInfoPacketCount(void)
+int32_t CMSISDAP::DAP::cmdInfoPacketCount(void)
 {
 	int ret;
 	uint32_t idx = 0;
@@ -589,7 +585,7 @@ int32_t CMSISDAP::cmdInfoPacketCount(void)
 	return CMSISDAP_OK;
 }
 
-int32_t CMSISDAP::getStatus(void)
+int32_t CMSISDAP::DAP::getStatus(void)
 {
 	int ret;
 	uint8_t d;
@@ -606,7 +602,7 @@ int32_t CMSISDAP::getStatus(void)
 	return CMSISDAP_OK;
 }
 
-int32_t CMSISDAP::change2Swd(void)
+int32_t CMSISDAP::DAP::change2Swd(void)
 {
 	int ret;
 	uint32_t idx = 0;
@@ -653,7 +649,7 @@ int32_t CMSISDAP::change2Swd(void)
 	return ret;
 }
 
-int32_t CMSISDAP::resetLink(void)
+int32_t CMSISDAP::DAP::resetLink(void)
 {
 	int ret;
 	uint32_t idx = 0;
@@ -689,7 +685,7 @@ int32_t CMSISDAP::resetLink(void)
 	return ret;
 }
 
-int32_t CMSISDAP::cmdSwjPins(uint8_t isLevelHigh, uint8_t pin, uint32_t delay, uint8_t *input)
+int32_t CMSISDAP::DAP::cmdSwjPins(uint8_t isLevelHigh, uint8_t pin, uint32_t delay, uint8_t *input)
 {
 	int ret;
 	uint32_t idx = 0;
@@ -715,7 +711,7 @@ int32_t CMSISDAP::cmdSwjPins(uint8_t isLevelHigh, uint8_t pin, uint32_t delay, u
 	return ret;
 }
 
-int32_t CMSISDAP::cmdSwjClock(uint32_t clock)
+int32_t CMSISDAP::DAP::cmdSwjClock(uint32_t clock)
 {
 	int ret;
 	uint32_t idx = 0;
@@ -741,7 +737,7 @@ int32_t CMSISDAP::cmdSwjClock(uint32_t clock)
 	return ret;
 }
 
-int32_t CMSISDAP::cmdSwdConf(uint8_t cfg)
+int32_t CMSISDAP::DAP::cmdSwdConf(uint8_t cfg)
 {
 	int ret;
 	uint32_t idx = 0;
@@ -764,7 +760,7 @@ int32_t CMSISDAP::cmdSwdConf(uint8_t cfg)
 	return ret;
 }
 
-int32_t CMSISDAP::initialize(void)
+int32_t CMSISDAP::DAP::initialize(void)
 {
 	int32_t ret;
 	ret = usbOpen();
@@ -779,19 +775,19 @@ int32_t CMSISDAP::initialize(void)
 		return ret;
 	}
 
-	ret = cmdLed(_LED_RUNNING, 0);
+	ret = cmdLed(RUNNING, false);
 	if (ret != CMSISDAP_OK)
 	{
 		return ret;
 	}
 
-	ret = cmdLed(_LED_CONNECT, 0);
+	ret = cmdLed(CONNECT, false);
 	if (ret != CMSISDAP_OK)
 	{
 		return ret;
 	}
 
-	ret = cmdLed(_LED_CONNECT, 1);
+	ret = cmdLed(CONNECT, true);
 	if (ret != CMSISDAP_OK)
 	{
 		return ret;
@@ -850,31 +846,13 @@ int32_t CMSISDAP::initialize(void)
 		return ret;
 	}
 
-	ret = cmdLed(_LED_RUNNING, 1);
+	ret = cmdLed(RUNNING, true);
 	if (ret != CMSISDAP_OK) {
 		return ret;
 	}
 
 	/* magic packetを送り、SWDへ移行 */
 	ret = change2Swd();
-	if (ret != CMSISDAP_OK) {
-		return ret;
-	}
-
-	/* IDCODE をDpReadしてみる */
-	ret = dpRead(DP_REG_IDCODE, &idcode);
-	if (ret != CMSISDAP_OK) {
-		_ERRPRT("Can not read the idcode of target device.\n");
-		return ret;
-	}
-
-	ret = resetLink();
-	if (ret != CMSISDAP_OK) {
-		(void)cmdLed(_LED_RUNNING, 0);
-		return ret;
-	}
-
-	ret = cmdLed(_LED_RUNNING, 0);
 	if (ret != CMSISDAP_OK) {
 		return ret;
 	}
@@ -888,10 +866,25 @@ int32_t CMSISDAP::initialize(void)
 	_DBGPRT("  Name        : %s\n", name == NULL ? "none" : name);
 	_DBGPRT("  USB PID     : 0x%04x\n", pid);
 	_DBGPRT("  USB VID     : 0x%04x\n", vid);
-	_DBGPRT("  IDCODE      : 0x%08x\n", idcode);
+
+	return ret;
+}
+
+int32_t CMSISDAP::initialize(void)
+{
+	int32_t ret;
+
+	ret = dap.initialize();
+	if (ret != CMSISDAP_OK)
+		return ret;
 
 	DP_IDCODE code;
-	code.raw = idcode;
+	ret = dp.read(DP_REG_IDCODE, &code.raw);
+	if (ret != CMSISDAP_OK) {
+		_ERRPRT("Can not read the idcode of target device. %x\n", ret);
+		return ret;
+	}
+	_DBGPRT("  IDCODE      : 0x%08x\n", code.raw);
 
 	if (code.RAO)
 	{
@@ -917,33 +910,27 @@ int32_t CMSISDAP::initialize(void)
 		_DBGPRT("    Invalid IDCODE\n");
 	}
 
-	uint32_t ctrlstat;
-	ret = dpRead(DP_REG_CTRL_STAT, &ctrlstat);
+	ret = dap.resetLink();
+	if (ret != CMSISDAP_OK) {
+		(void)dap.cmdLed(DAP::RUNNING, false);
+		return ret;
+	}
+
+	DP_CTRL_STAT ctrlstat;
+	ret = dp.read(DP_REG_CTRL_STAT, &ctrlstat.raw);
 	if (ret != CMSISDAP_OK) {
 		return ret;
 	}
-	_DBGPRT("  CTRL/STAT   : 0x%08x\n", ctrlstat);
+	_DBGPRT("  CTRL/STAT   : 0x%08x\n", ctrlstat.raw);
 
-	DP_SELECT select;
+	// [TODO] CDBGPWRUPACK が立っていない場合は電源を入れる
 
 	_DBGPRT("AP SCAN\n");
 
 	for (uint32_t i = 0; i < 255; i++)
 	{
-		select.APSEL = i;
-		select.Reserved[0] = 0;
-		select.Reserved[1] = 0;
-		select.APBANKSEL = 0xF;
-		select.DPBANKSEL = 0;
-
-		/* APSEL:0 APBANKSEL:0xF を SELECT */
-		ret = dpWrite(DP_REG_SELECT, select.raw);
-		if (ret != CMSISDAP_OK) {
-			return ret;
-		}
-
 		AP_IDR idr;
-		ret = apRead(AP_REG_IDR, &idr.raw);
+		ret = ap.read(i, AP_REG_IDR, &idr.raw);
 		if (ret != CMSISDAP_OK) {
 			return ret;
 		}
@@ -965,7 +952,7 @@ int32_t CMSISDAP::initialize(void)
 		if (idr.Type != 0x00)
 		{
 			uint32_t base;
-			ret = apRead(MEM_AP_REG_BASE, &base);
+			ret = ap.read(i, MEM_AP_REG_BASE, &base);
 			if (ret != CMSISDAP_OK) {
 				return ret;
 			}
@@ -975,10 +962,15 @@ int32_t CMSISDAP::initialize(void)
 		}
 	}
 
+	ret = dap.cmdLed(DAP::RUNNING, false);
+	if (ret != CMSISDAP_OK) {
+		return ret;
+	}
+
 	return ret;
 }
 
-int32_t CMSISDAP::finalize(void)
+int32_t CMSISDAP::DAP::finalize(void)
 {
 	int ret;
 
@@ -988,12 +980,12 @@ int32_t CMSISDAP::finalize(void)
 		return ret;
 	}
 
-	ret = cmdLed(_LED_RUNNING, 0);
+	ret = cmdLed(RUNNING, 0);
 	if (ret != CMSISDAP_OK) {
 		return ret;
 	}
 
-	ret = cmdLed(_LED_CONNECT, 0);
+	ret = cmdLed(CONNECT, 0);
 	if (ret != CMSISDAP_OK) {
 		return ret;
 	}
@@ -1019,12 +1011,12 @@ int32_t CMSISDAP::finalize(void)
 
 int32_t CMSISDAP::resetSw(void)
 {
-	return cmdSwjPins(_PIN_SWCLK, 1, 0, NULL);
+	return dap.cmdSwjPins(_PIN_SWCLK, 1, 0, NULL);
 }
 
 int32_t CMSISDAP::resetHw(void)
 {
-	return cmdSwjPins(_PIN_nRESET, 1, 0, NULL);
+	return dap.cmdSwjPins(_PIN_nRESET, 1, 0, NULL);
 }
 
 int32_t CMSISDAP::setSpeed(uint32_t speed)
@@ -1033,7 +1025,7 @@ int32_t CMSISDAP::setSpeed(uint32_t speed)
 		speed = _CMSISDAP_MAX_CLOCK;
 	}
 
-	return cmdSwjClock(speed);
+	return dap.cmdSwjClock(speed);
 }
 
 int32_t CMSISDAP::attach()
@@ -1214,7 +1206,7 @@ int32_t CMSISDAP::monitor(const std::string command, std::string* output)
 	return 0;
 }
 
-int32_t CMSISDAP::dpapRead(bool dp, uint32_t reg, uint32_t *data)
+int32_t CMSISDAP::DAP::dpapRead(bool dp, uint32_t reg, uint32_t *data)
 {
 	int ret;
 	uint32_t val;
@@ -1243,7 +1235,7 @@ int32_t CMSISDAP::dpapRead(bool dp, uint32_t reg, uint32_t *data)
 	return CMSISDAP_OK;
 }
 
-int32_t CMSISDAP::dpapWrite(bool dp, uint32_t reg, uint32_t data)
+int32_t CMSISDAP::DAP::dpapWrite(bool dp, uint32_t reg, uint32_t data)
 {
 	int ret;
 	uint32_t idx = 0;
@@ -1265,23 +1257,55 @@ int32_t CMSISDAP::dpapWrite(bool dp, uint32_t reg, uint32_t data)
 	return CMSISDAP_OK;
 }
 
-int32_t CMSISDAP::dpRead(uint32_t reg, uint32_t *data)
+int32_t CMSISDAP::DP::read(uint32_t reg, uint32_t *data)
 {
-	return dpapRead(true, reg, data);
+	return dap.dpapRead(true, reg, data);
 }
 
-int32_t CMSISDAP::dpWrite(uint32_t reg, uint32_t data)
+int32_t CMSISDAP::DP::write(uint32_t reg, uint32_t data)
 {
-	return dpapWrite(true, reg, data);
+	return dap.dpapWrite(true, reg, data);
 }
 
-int32_t CMSISDAP::apRead(uint32_t reg, uint32_t *data)
+int32_t CMSISDAP::AP::select(uint32_t ap, uint32_t reg)
 {
-	return dpapRead(false, reg, data);
+	uint32_t bank = reg & 0xF0;
+
+	if (ap != lastAp || bank != lastApBank)
+	{
+		/* APSEL, APBANKSEL を設定 */
+		DP_SELECT select;
+		select.APSEL = ap;
+		select.Reserved[0] = 0;
+		select.Reserved[1] = 0;
+		select.APBANKSEL = bank >> 4;
+		select.DPBANKSEL = 0;
+
+		int ret = dp.write(DP_REG_SELECT, select.raw);
+		if (ret != CMSISDAP_OK) {
+			return ret;
+		}
+
+		lastAp = ap;
+		lastApBank = bank;
+	}
+	return CMSISDAP_OK;
 }
 
-int32_t CMSISDAP::apWrite(uint32_t reg, uint32_t data)
+int32_t CMSISDAP::AP::read(uint32_t ap, uint32_t reg, uint32_t *data)
 {
-	return dpapWrite(false, reg, data);
+	int ret = select(ap, reg);
+	if (ret != CMSISDAP_OK)
+		return ret;
+
+	return dap.dpapRead(false, reg, data);
 }
 
+int32_t CMSISDAP::AP::write(uint32_t ap, uint32_t reg, uint32_t data)
+{
+	int ret = select(ap, reg);
+	if (ret != CMSISDAP_OK)
+		return ret;
+
+	return dap.dpapWrite(false, reg, data);
+}
