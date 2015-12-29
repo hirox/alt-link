@@ -178,4 +178,16 @@ private:
 
 		int32_t select(uint32_t ap, uint32_t reg);
 	} ap = AP(dap, dp);
+
+	class MEM_AP
+	{
+	public:
+		MEM_AP(uint32_t i, AP& a) : index(i), ap(a) {}
+		int32_t read(uint32_t addr, uint32_t *data);
+		int32_t write(uint32_t addr, uint32_t val);
+
+	private:
+		AP& ap;
+		uint32_t index;
+	};
 };

@@ -126,6 +126,8 @@ static inline uint32_t buf2LE32(const uint8_t *buf)
 
 #pragma pack(push,1)
 
+#define CONFIRM_UINT32(type) sizeof(type) == sizeof(uint32_t), "sizeof(" #type ") should be same as sizeof(uint32_t)"
+
 union DP_IDCODE
 {
 	struct
@@ -140,7 +142,7 @@ union DP_IDCODE
 	};
 	uint32_t raw;
 };
-static_assert(sizeof(DP_IDCODE) == sizeof(uint32_t), "sizeof(DP_IDCODE) should be same as sizeof(uint32_t)");
+static_assert(CONFIRM_UINT32(DP_IDCODE));
 
 union DP_CTRL_STAT
 {
@@ -165,7 +167,7 @@ union DP_CTRL_STAT
 	};
 	uint32_t raw;
 };
-static_assert(sizeof(DP_CTRL_STAT) == sizeof(uint32_t), "sizeof(DP_CTRL_STAT) should be same as sizeof(uint32_t)");
+static_assert(CONFIRM_UINT32(DP_CTRL_STAT));
 
 union DP_SELECT
 {
@@ -178,7 +180,7 @@ union DP_SELECT
 	};
 	uint32_t raw;
 };
-static_assert(sizeof(DP_SELECT) == sizeof(uint32_t), "sizeof(DP_SELECT) should be same as sizeof(uint32_t)");
+static_assert(CONFIRM_UINT32(DP_SELECT));
 
 union AP_IDR
 {
@@ -194,21 +196,70 @@ union AP_IDR
 	};
 	uint32_t raw;
 };
-static_assert(sizeof(AP_IDR) == sizeof(uint32_t), "sizeof(AP_IDR) should be same as sizeof(uint32_t)");
+static_assert(CONFIRM_UINT32(AP_IDR));
+
+union MEM_AP_CSW
+{
+	struct
+	{
+		uint32_t Size			: 3;
+		uint32_t Reseved0		: 1;
+		uint32_t AddrInc		: 2;
+		uint32_t DeviceEn		: 1;
+		uint32_t TrInProg		: 1;
+		uint32_t Mode			: 4;
+		uint32_t Type			: 4;
+		uint32_t Reserved1		: 7;
+		uint32_t SPIDEN			: 1;
+		uint32_t Prot			: 7;
+		uint32_t DbgSwEnable	: 1;
+	};
+	uint32_t raw;
+};
+static_assert(CONFIRM_UINT32(MEM_AP_CSW));
+
+union MEM_AP_CFG
+{
+	struct
+	{
+		uint32_t BE			: 1;	// Big Endian
+		uint32_t LA			: 1;	// Long address (Large Physical Address)
+		uint32_t LD			: 1;	// Large data
+		uint32_t Reserved	: 29;
+	};
+	uint32_t raw;
+};
+static_assert(CONFIRM_UINT32(MEM_AP_CFG));
+
+union CPUID
+{
+	struct
+	{
+		uint32_t Revision		: 4;
+		uint32_t PartNo			: 12;
+		uint32_t Architecture	: 4;
+		uint32_t Variant		: 4;
+		uint32_t Implementer	: 8;
+	};
+	uint32_t raw;
+};
+static_assert(CONFIRM_UINT32(CPUID));
 
 #pragma pack(pop)
 
 /* MEM-AP register addresses */
 /* TODO: rename as MEM_AP_REG_* */
-#define AP_REG_CSW 0x00
-#define AP_REG_TAR 0x04
-#define AP_REG_DRW 0x0C
+#define MEM_AP_REG_CSW		0x00
+#define MEM_AP_REG_TAR		0x04
+#define MEM_AP_REG_TAR2		0x08	// for 64bit
+#define MEM_AP_REG_DRW		0x0C
 #define AP_REG_BD0 0x10
 #define AP_REG_BD1 0x14
 #define AP_REG_BD2 0x18
 #define AP_REG_BD3 0x1C
-#define AP_REG_CFG 0xF4 /* big endian? */
-#define MEM_AP_REG_BASE 0xF8
+#define MEM_AP_REG_CFG		0xF4
+#define MEM_AP_REG_BASE2	0xF0	// for 64bit
+#define MEM_AP_REG_BASE		0xF8
 
 /* Generic AP register address */
 #define AP_REG_IDR 0xFC
@@ -654,7 +705,8 @@ int32_t CMSISDAP::DAP::resetLink(void)
 	int ret;
 	uint32_t idx = 0;
 
-	/* da14 は未実装 */
+#if 0
+	/* アダプタにターゲットに応じたリセット方法が書かれている場合に発動させる */
 	packetBuf[idx++] = _USB_HID_REPORT_NUM;
 	packetBuf[idx++] = CMD_RESET_TARGET;
 	ret = usbTx(idx);
@@ -663,6 +715,7 @@ int32_t CMSISDAP::DAP::resetLink(void)
 		return ret;
 	}
 	_DBGPRT("Target Reset Res: Status:%02x Execute:%s\n", packetBuf[1], packetBuf[2] == 0x1 ? "OK" : "no impl");
+#endif
 
 	idx = 0;
 	packetBuf[idx++] = _USB_HID_REPORT_NUM;
@@ -956,9 +1009,78 @@ int32_t CMSISDAP::initialize(void)
 			if (ret != CMSISDAP_OK) {
 				return ret;
 			}
-			_DBGPRT("    BASE: 0x%08x\n", base & 0xFFFFF000);
+			_DBGPRT("    BASE : 0x%08x\n", base & 0xFFFFF000);
 			_DBGPRT("      Debug entry : %s\n", base & 0x1 ? "present" : "no");
 
+			MEM_AP_CSW csw;
+			ret = ap.read(i, MEM_AP_REG_CSW, &csw.raw);
+			if (ret != CMSISDAP_OK) {
+				return ret;
+			}
+			_DBGPRT("    Control/Status    : 0x%08x\n", csw.raw);
+			_DBGPRT("      Device          : %s\n", csw.DeviceEn ? "enabled" : "disabled");
+			if (csw.DeviceEn)
+				_DBGPRT("      Debug SW Access : %s\n", csw.DbgSwEnable ? "enabled" : "disabled");
+			_DBGPRT("      Secure Access   : %x\n", csw.SPIDEN);
+			_DBGPRT("      Prot/Type       : %x/%x\n", csw.Prot, csw.Type);
+			_DBGPRT("      Mode            : %s\n",
+				csw.Mode == 0 ? "Basic" :
+				csw.Mode == 1 ? "Barrier support enabled" : "UNKNOWN");
+			_DBGPRT("      Transfer        : %s\n", csw.TrInProg ? "in progress" : "idle");
+			_DBGPRT("      Auto increment  : %s\n",
+				csw.AddrInc == 0 ? "off" :
+				csw.AddrInc == 1 ? "single" :
+				csw.AddrInc == 2 ? "packed" : "UNKNOWN");
+			_DBGPRT("      Size            : %s\n",
+				csw.Size == 0 ? "8bit" :
+				csw.Size == 1 ? "16bit" :
+				csw.Size == 2 ? "32bit" :
+				csw.Size == 3 ? "64bit" :
+				csw.Size == 4 ? "128bit" :
+				csw.Size == 5 ? "256bit" : "UNKNOWN");
+
+			MEM_AP memap(i, ap);
+			CPUID cpuid;
+			ret = memap.read(0xE000ED00, & cpuid.raw);
+			if (ret != CMSISDAP_OK) {
+				return ret;
+			}
+			_DBGPRT("    CPUID          : 0x%08x\n", cpuid.raw);
+			_DBGPRT("      Implementer  : %s\n",
+				cpuid.Implementer == 0x41 ? "ARM" :
+				cpuid.Implementer == 0x44 ? "DEC" :
+				cpuid.Implementer == 0x4D ? "Motorola/Freescale" :
+				cpuid.Implementer == 0x51 ? "QUALCOMM" :
+				cpuid.Implementer == 0x56 ? "Marvell" :
+				cpuid.Implementer == 0x69 ? "Intel" : "UNKNOWN");
+			_DBGPRT("      Architecture : %s\n",
+				cpuid.Architecture == 0x01 ? "ARMv4" :
+				cpuid.Architecture == 0x02 ? "ARMv4T" :
+				cpuid.Architecture == 0x03 ? "ARMv5" :
+				cpuid.Architecture == 0x04 ? "ARMv5T" :
+				cpuid.Architecture == 0x05 ? "ARMv5TE" :
+				cpuid.Architecture == 0x06 ? "ARMv5TEJ" :
+				cpuid.Architecture == 0x07 ? "ARMv6" :
+				cpuid.Architecture == 0x0C ? "ARMv6-M" :
+				cpuid.Architecture == 0x0F ? "ARMv7" : "UNKNOWN");
+			_DBGPRT("      Part number  : %s\n",
+				cpuid.PartNo == 0xC05 ? "Cortex-A5" :
+				cpuid.PartNo == 0xC07 ? "Cortex-A7" :
+				cpuid.PartNo == 0xC08 ? "Cortex-A8" :
+				cpuid.PartNo == 0xC09 ? "Cortex-A9" :
+				cpuid.PartNo == 0xC0D ? "Cortex-A12" :
+				cpuid.PartNo == 0xC0E ? "Cortex-A17" :
+				cpuid.PartNo == 0xC0F ? "Cortex-A15" :
+				cpuid.PartNo == 0xC14 ? "Cortex-R4" :
+				cpuid.PartNo == 0xC15 ? "Cortex-R5" :
+				cpuid.PartNo == 0xC17 ? "Cortex-R7" :
+				cpuid.PartNo == 0xC20 ? "Cortex-M0" :
+				cpuid.PartNo == 0xC21 ? "Cortex-M1" :
+				cpuid.PartNo == 0xC23 ? "Cortex-M3" :
+				cpuid.PartNo == 0xC24 ? "Cortex-M4" :
+				cpuid.PartNo == 0xC27 ? "Cortex-M7" :
+				cpuid.PartNo == 0xC60 ? "Cortex-M0+" : "UNKNOWN");
+				_DBGPRT("      Revision     : r%xp%x\n", cpuid.Variant, cpuid.Revision);
 		}
 	}
 
@@ -1308,4 +1430,30 @@ int32_t CMSISDAP::AP::write(uint32_t ap, uint32_t reg, uint32_t data)
 		return ret;
 
 	return dap.dpapWrite(false, reg, data);
+}
+
+int32_t CMSISDAP::MEM_AP::read(uint32_t addr, uint32_t *data)
+{
+	int ret = ap.write(index, MEM_AP_REG_TAR, addr);
+	if (ret != CMSISDAP_OK) {
+		return ret;
+	}
+
+	ret = ap.read(index, MEM_AP_REG_DRW, data);
+	if (ret != CMSISDAP_OK) {
+		return ret;
+	}
+}
+
+int32_t CMSISDAP::MEM_AP::write(uint32_t addr, uint32_t val)
+{
+	int ret = ap.write(index, MEM_AP_REG_TAR, addr);
+	if (ret != CMSISDAP_OK) {
+		return ret;
+	}
+
+	ret = ap.write(index, MEM_AP_REG_DRW, val);
+	if (ret != CMSISDAP_OK) {
+		return ret;
+	}
 }
