@@ -64,11 +64,11 @@ public:
 
 	virtual int32_t monitor(const std::string command, std::string* output);
 
-	int32_t CMSISDAP::initialize(void);
-	int32_t CMSISDAP::finalize(void);
-	int32_t CMSISDAP::resetSw(void);
-	int32_t CMSISDAP::resetHw(void);
-	int32_t CMSISDAP::setSpeed(uint32_t speed);
+	int32_t initialize(void);
+	int32_t finalize(void);
+	int32_t resetSw(void);
+	int32_t resetHw(void);
+	int32_t setSpeed(uint32_t speed);
 
 private:
 	enum CMD {
@@ -117,25 +117,29 @@ private:
 	uint16_t vid;
 	uint8_t caps;
 
-	int32_t CMSISDAP::usbOpen(void);
-	int32_t CMSISDAP::usbClose(void);
-	int32_t CMSISDAP::usbTx(uint32_t txlen);
-	int32_t CMSISDAP::cmdInfoCapabilities(void);
-	int32_t CMSISDAP::cmdLed(uint8_t led, uint8_t on);
-	int32_t CMSISDAP::cmdConnect(void);
-	int32_t CMSISDAP::cmdDisconnect(void);
-	int32_t CMSISDAP::cmdTxConf(uint8_t idle, uint16_t delay, uint16_t retry);
-	int32_t CMSISDAP::cmdInfoFwVer(void);
-	int32_t CMSISDAP::cmdInfoVendor(void);
-	int32_t CMSISDAP::cmdInfoName(void);
-	int32_t CMSISDAP::cmdInfoPacketSize(void);
-	int32_t CMSISDAP::cmdInfoPacketCount(void);
-	int32_t CMSISDAP::getStatus(void);
-	int32_t CMSISDAP::change2Swd(void);
-	int32_t CMSISDAP::resetLink(void);
-	int32_t CMSISDAP::cmdSwjPins(uint8_t isLevelHigh, uint8_t pin, uint32_t delay, uint8_t *input);
-	int32_t CMSISDAP::cmdSwjClock(uint32_t clock);
-	int32_t CMSISDAP::cmdSwdConf(uint8_t cfg);
-	int32_t CMSISDAP::dpRead(uint32_t reg, uint32_t *data);
-	int32_t CMSISDAP::dpWrite(uint32_t reg, uint32_t val);
+	int32_t usbOpen(void);
+	int32_t usbClose(void);
+	int32_t usbTx(uint32_t txlen);
+	int32_t cmdInfoCapabilities(void);
+	int32_t cmdLed(uint8_t led, uint8_t on);
+	int32_t cmdConnect(void);
+	int32_t cmdDisconnect(void);
+	int32_t cmdTxConf(uint8_t idle, uint16_t delay, uint16_t retry);
+	int32_t cmdInfoFwVer(void);
+	int32_t cmdInfoVendor(void);
+	int32_t cmdInfoName(void);
+	int32_t cmdInfoPacketSize(void);
+	int32_t cmdInfoPacketCount(void);
+	int32_t getStatus(void);
+	int32_t change2Swd(void);
+	int32_t resetLink(void);
+	int32_t cmdSwjPins(uint8_t isLevelHigh, uint8_t pin, uint32_t delay, uint8_t *input);
+	int32_t cmdSwjClock(uint32_t clock);
+	int32_t cmdSwdConf(uint8_t cfg);
+	int32_t dpapRead(bool dp, uint32_t reg, uint32_t *data);
+	int32_t dpapWrite(bool dp, uint32_t reg, uint32_t val);
+	int32_t dpRead(uint32_t reg, uint32_t *data);
+	int32_t dpWrite(uint32_t reg, uint32_t val);
+	int32_t apRead(uint32_t reg, uint32_t *data);
+	int32_t apWrite(uint32_t reg, uint32_t val);
 };

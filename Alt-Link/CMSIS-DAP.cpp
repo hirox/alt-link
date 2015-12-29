@@ -91,13 +91,13 @@ static inline uint32_t buf2LE32(const uint8_t *buf)
  *   IDCODE (JTAG_DP_IDCODE) and ABORT (JTAG_DP_ABORT).
  * - SWD accesses these directly, sometimes needing SELECT.CTRLSEL
  */
-#define DP_IDCODE BANK_REG(0x0, 0x0)    /* SWD: read */
-#define DP_ABORT BANK_REG(0x0, 0x0)     /* SWD: write */
-#define DP_CTRL_STAT BANK_REG(0x0, 0x4) /* r/w */
-#define DP_RESEND BANK_REG(0x0, 0x8)    /* SWD: read */
-#define DP_SELECT BANK_REG(0x0, 0x8)    /* JTAG: r/w; SWD: write */
-#define DP_RDBUFF BANK_REG(0x0, 0xC)    /* read-only */
-#define DP_WCR BANK_REG(0x1, 0x4)       /* SWD: r/w */
+#define DP_REG_IDCODE		BANK_REG(0x0, 0x0)	/* SWD: read */
+#define DP_ABORT			BANK_REG(0x0, 0x0)	/* SWD: write */
+#define DP_REG_CTRL_STAT	BANK_REG(0x0, 0x4)	/* r/w */
+#define DP_RESEND			BANK_REG(0x0, 0x8)	/* SWD: read */
+#define DP_REG_SELECT		BANK_REG(0x0, 0x8)	/* JTAG: r/w; SWD: write */
+#define DP_RDBUFF			BANK_REG(0x0, 0xC)	/* read-only */
+#define DP_WCR				BANK_REG(0x1, 0x4)	/* SWD: r/w */
 
 #define WCR_TO_TRN(wcr) ((uint32_t)(1 + (3 & ((wcr)) >> 8))) /* 1..4 clocks */
 #define WCR_TO_PRESCALE(wcr) ((uint32_t)(7 & ((wcr))))       /* impl defined */
@@ -109,6 +109,7 @@ static inline uint32_t buf2LE32(const uint8_t *buf)
 #define WDERRCLR (1UL << 3)   /* SWD-only */
 #define ORUNERRCLR (1UL << 4) /* SWD-only */
 
+#if 0
 /* Fields of the DP's CTRL/STAT register */
 #define CORUNDETECT (1UL << 0)
 #define SSTICKYORUN (1UL << 1)
@@ -125,6 +126,81 @@ static inline uint32_t buf2LE32(const uint8_t *buf)
 #define CDBGPWRUPACK (1UL << 29)
 #define CSYSPWRUPREQ (1UL << 30)
 #define CSYSPWRUPACK (1UL << 31)
+#endif
+
+#pragma pack(push,1)
+
+union DP_IDCODE
+{
+	struct
+	{
+		uint32_t RAO		: 1;
+		uint32_t DESIGNER	: 11;
+		uint32_t VERSION	: 4;
+		uint32_t MIN		: 1;
+		uint32_t RES0		: 3;
+		uint32_t PARTNO		: 8;
+		uint32_t REVISION	: 4;
+	};
+	uint32_t raw;
+};
+static_assert(sizeof(DP_IDCODE) == sizeof(uint32_t), "sizeof(DP_IDCODE) should be same as sizeof(uint32_t)");
+
+union DP_CTRL_STAT
+{
+	struct
+	{
+		uint32_t ORUNDETECT		: 1;
+		uint32_t STICKYORUN		: 1;
+		uint32_t TRNMODE		: 2;
+		uint32_t STICKYCMP		: 1;
+		uint32_t STICKYERR		: 1;
+		uint32_t READOK			: 1;
+		uint32_t WDATAERR		: 1;
+		uint32_t MASKLANE		: 4;
+		uint32_t TRNCNT			: 12;
+		uint32_t RES0			: 2;
+		uint32_t CDBGRSTREQ		: 1;	// DBG RST REQ
+		uint32_t CDBGRSTACK		: 1;	// DBG RST ACK
+		uint32_t CDBGPWRUPREQ	: 1;	// DBG PWR UP REQ
+		uint32_t CDBGPWRUPACK	: 1;	// DBG PWR UP ACK
+		uint32_t CSYSPWRUPREQ	: 1;	// SYS PWR UP REQ
+		uint32_t CSYSPWRUPACK	: 1;	// SYS PWR UP ACK
+	};
+	uint32_t raw;
+};
+static_assert(sizeof(DP_CTRL_STAT) == sizeof(uint32_t), "sizeof(DP_CTRL_STAT) should be same as sizeof(uint32_t)");
+
+union DP_SELECT
+{
+	struct
+	{
+		uint8_t DPBANKSEL : 4;
+		uint8_t APBANKSEL : 4;
+		uint8_t Reserved[2];
+		uint8_t APSEL;
+	};
+	uint32_t raw;
+};
+static_assert(sizeof(DP_SELECT) == sizeof(uint32_t), "sizeof(DP_SELECT) should be same as sizeof(uint32_t)");
+
+union AP_IDR
+{
+	struct
+	{
+		uint32_t Type		: 4;
+		uint32_t Variant	: 4;
+		uint32_t Reserved	: 5;
+		uint32_t Class		: 4;
+		uint32_t IdentityCode		: 7;
+		uint32_t ContinuationCode	: 4;
+		uint32_t Revision	:4;
+	};
+	uint32_t raw;
+};
+static_assert(sizeof(AP_IDR) == sizeof(uint32_t), "sizeof(AP_IDR) should be same as sizeof(uint32_t)");
+
+#pragma pack(pop)
 
 /* MEM-AP register addresses */
 /* TODO: rename as MEM_AP_REG_* */
@@ -136,7 +212,7 @@ static inline uint32_t buf2LE32(const uint8_t *buf)
 #define AP_REG_BD2 0x18
 #define AP_REG_BD3 0x1C
 #define AP_REG_CFG 0xF4 /* big endian? */
-#define AP_REG_BASE 0xF8
+#define MEM_AP_REG_BASE 0xF8
 
 /* Generic AP register address */
 #define AP_REG_IDR 0xFC
@@ -566,7 +642,7 @@ int32_t CMSISDAP::change2Swd(void)
 	idx = 0;
 	packetBuf[idx++] = _USB_HID_REPORT_NUM;
 	packetBuf[idx++] = CMD_SWJ_SEQ;
-	packetBuf[idx++] = 2 * 8;
+	packetBuf[idx++] = 1 * 8;
 	packetBuf[idx++] = 0x00;
 	ret = usbTx(idx);
 	if (ret != CMSISDAP_OK) {
@@ -709,7 +785,7 @@ int32_t CMSISDAP::initialize(void)
 		return ret;
 	}
 
-	ret = cmdLed( _LED_CONNECT, 0);
+	ret = cmdLed(_LED_CONNECT, 0);
 	if (ret != CMSISDAP_OK)
 	{
 		return ret;
@@ -786,7 +862,7 @@ int32_t CMSISDAP::initialize(void)
 	}
 
 	/* IDCODE をDpReadしてみる */
-	ret = dpRead(DP_IDCODE, &idcode);
+	ret = dpRead(DP_REG_IDCODE, &idcode);
 	if (ret != CMSISDAP_OK) {
 		_ERRPRT("Can not read the idcode of target device.\n");
 		return ret;
@@ -813,6 +889,91 @@ int32_t CMSISDAP::initialize(void)
 	_DBGPRT("  USB PID     : 0x%04x\n", pid);
 	_DBGPRT("  USB VID     : 0x%04x\n", vid);
 	_DBGPRT("  IDCODE      : 0x%08x\n", idcode);
+
+	DP_IDCODE code;
+	code.raw = idcode;
+
+	if (code.RAO)
+	{
+		_DBGPRT("    MANUFACTURER : %s\n", code.DESIGNER == 0x23B ? "ARM" : "UNKNOWN");
+		if (code.PARTNO == 0xBA && code.RES0 == 0 && code.MIN == 0 && code.VERSION == 0)
+		{
+			_DBGPRT("    PARTSNO      : JTAG-DP\n");
+			_DBGPRT("    VERSION      : %x\n", code.REVISION);
+		}
+		else
+		{
+			_DBGPRT("    PARTSNO      : %s\n",
+				(code.PARTNO == 0xBA) ? "SW-DP" :
+				(code.PARTNO == 0xBB) ? "SW-DP (M0)" :
+				(code.PARTNO == 0xBC) ? "SW-DP (M0+)" : "UNKNOWN");
+			_DBGPRT("    VERSION      : v%x\n", code.VERSION);
+			_DBGPRT("    MIN          : %s\n", code.MIN ? "MINDP" : "No");
+			_DBGPRT("    REVISION     : %x\n", code.REVISION);
+		}
+	}
+	else
+	{
+		_DBGPRT("    Invalid IDCODE\n");
+	}
+
+	uint32_t ctrlstat;
+	ret = dpRead(DP_REG_CTRL_STAT, &ctrlstat);
+	if (ret != CMSISDAP_OK) {
+		return ret;
+	}
+	_DBGPRT("  CTRL/STAT   : 0x%08x\n", ctrlstat);
+
+	DP_SELECT select;
+
+	_DBGPRT("AP SCAN\n");
+
+	for (uint32_t i = 0; i < 255; i++)
+	{
+		select.APSEL = i;
+		select.Reserved[0] = 0;
+		select.Reserved[1] = 0;
+		select.APBANKSEL = 0xF;
+		select.DPBANKSEL = 0;
+
+		/* APSEL:0 APBANKSEL:0xF を SELECT */
+		ret = dpWrite(DP_REG_SELECT, select.raw);
+		if (ret != CMSISDAP_OK) {
+			return ret;
+		}
+
+		AP_IDR idr;
+		ret = apRead(AP_REG_IDR, &idr.raw);
+		if (ret != CMSISDAP_OK) {
+			return ret;
+		}
+
+		if (idr.raw == 0)
+			break;
+
+		_DBGPRT("  AP-%d\n", i);
+		_DBGPRT("    IDR: 0x%08x\n", idr.raw);
+		_DBGPRT("      Designer   : %s\n", idr.ContinuationCode == 0x04 && idr.IdentityCode == 0x3b ? "ARM" : "UNKNOWN");
+		_DBGPRT("      Class/Type : %s\n",
+			idr.Type == 0x00 && idr.Class == 0x00 ? "JTAG-AP" :
+			idr.Type == 0x01 && idr.Class == 0x08 ? "MEM-AP AMBA AHB bus" :
+			idr.Type == 0x02 && idr.Class == 0x08 ? "MEM-AP AMBA APB2 or APB3 bus" :
+			idr.Type == 0x04 && idr.Class == 0x08 ? "MEM-AP AMBA AXI4 ot AXI4 bus" : "UNKNOWN");
+		_DBGPRT("      Variant    : %x\n", idr.Variant);
+		_DBGPRT("      Revision   : %x\n", idr.Revision);
+
+		if (idr.Type != 0x00)
+		{
+			uint32_t base;
+			ret = apRead(MEM_AP_REG_BASE, &base);
+			if (ret != CMSISDAP_OK) {
+				return ret;
+			}
+			_DBGPRT("    BASE: 0x%08x\n", base & 0xFFFFF000);
+			_DBGPRT("      Debug entry : %s\n", base & 0x1 ? "present" : "no");
+
+		}
+	}
 
 	return ret;
 }
@@ -1053,7 +1214,7 @@ int32_t CMSISDAP::monitor(const std::string command, std::string* output)
 	return 0;
 }
 
-int32_t CMSISDAP::dpRead(uint32_t reg, uint32_t *data)
+int32_t CMSISDAP::dpapRead(bool dp, uint32_t reg, uint32_t *data)
 {
 	int ret;
 	uint32_t val;
@@ -1063,7 +1224,7 @@ int32_t CMSISDAP::dpRead(uint32_t reg, uint32_t *data)
 	packetBuf[idx++] = CMD_TX;
 	packetBuf[idx++] = 0x00; /* DAP Index, ignored in the swd. */
 	packetBuf[idx++] = 0x01; /* Tx count */
-	packetBuf[idx++] = CMSIS_CMD_DP | CMSIS_CMD_READ | CMSIS_CMD_A32(reg);
+	packetBuf[idx++] = (dp ? CMSIS_CMD_DP : CMSIS_CMD_AP) | CMSIS_CMD_READ | CMSIS_CMD_A32(reg);
 	ret = usbTx(idx);
 	if (ret != CMSISDAP_OK) {
 		return ret;
@@ -1082,17 +1243,17 @@ int32_t CMSISDAP::dpRead(uint32_t reg, uint32_t *data)
 	return CMSISDAP_OK;
 }
 
-int32_t CMSISDAP::dpWrite(uint32_t reg, uint32_t data)
+int32_t CMSISDAP::dpapWrite(bool dp, uint32_t reg, uint32_t data)
 {
 	int ret;
 	uint32_t idx = 0;
 
-	packetBuf[idx++] = 0x00; /* report number */
+	packetBuf[idx++] = _USB_HID_REPORT_NUM; /* report number */
 	packetBuf[idx++] = CMD_TX;
 	packetBuf[idx++] = 0x00;
 	packetBuf[idx++] = 0x01;
-	packetBuf[idx++] = CMSIS_CMD_DP | CMSIS_CMD_WRITE | CMSIS_CMD_A32(reg);
-	packetBuf[idx++] = (data) & 0xff;
+	packetBuf[idx++] = (dp ? CMSIS_CMD_DP : CMSIS_CMD_AP) | CMSIS_CMD_WRITE | CMSIS_CMD_A32(reg);
+	packetBuf[idx++] = (data)& 0xff;
 	packetBuf[idx++] = (data >> 8) & 0xff;
 	packetBuf[idx++] = (data >> 16) & 0xff;
 	packetBuf[idx++] = (data >> 24) & 0xff;
@@ -1102,5 +1263,25 @@ int32_t CMSISDAP::dpWrite(uint32_t reg, uint32_t data)
 		ret = packetBuf[2];
 	}
 	return CMSISDAP_OK;
+}
+
+int32_t CMSISDAP::dpRead(uint32_t reg, uint32_t *data)
+{
+	return dpapRead(true, reg, data);
+}
+
+int32_t CMSISDAP::dpWrite(uint32_t reg, uint32_t data)
+{
+	return dpapWrite(true, reg, data);
+}
+
+int32_t CMSISDAP::apRead(uint32_t reg, uint32_t *data)
+{
+	return dpapRead(false, reg, data);
+}
+
+int32_t CMSISDAP::apWrite(uint32_t reg, uint32_t data)
+{
+	return dpapWrite(false, reg, data);
 }
 
