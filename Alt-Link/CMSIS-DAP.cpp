@@ -1492,13 +1492,13 @@ int32_t CMSISDAP::ROM_TABLE::readCid()
 
 	_DBGPRT("    CID     : 0x%08x\n", cid.raw);
 	_DBGPRT("      Class : %s\n",
-		cid.ComponentClass == 0x0 ? "Generic verification component" :
-		cid.ComponentClass == 0x1 ? "ROM Table" :
-		cid.ComponentClass == 0x9 ? "Debug component" :
-		cid.ComponentClass == 0xB ? "Peripheral Test Block" :
-		cid.ComponentClass == 0xD ? "OptimoDE Data Engine SubSystem(DESS) component" :
-		cid.ComponentClass == 0xE ? "Generic IP component" :
-		cid.ComponentClass == 0xF ? "PrimeCell peripheral" : "UNKNOWN");
+		cid.ComponentClass == CID::GENERIC_VERIFICATION ? "Generic verification component" :
+		cid.ComponentClass == CID::ROM_TABLE ? "ROM Table" :
+		cid.ComponentClass == CID::DEBUG_COMPONENT ? "Debug component" :
+		cid.ComponentClass == CID::PERIPHERAL_TEST_BLOCK ? "Peripheral Test Block" :
+		cid.ComponentClass == CID::OPTIMO_DE ? "OptimoDE Data Engine SubSystem(DESS) component" :
+		cid.ComponentClass == CID::GENERIC_IP ? "Generic IP component" :
+		cid.ComponentClass == CID::PRIME_CELL ? "PrimeCell peripheral" : "UNKNOWN");
 
 	return CMSISDAP_OK;
 }
@@ -1540,6 +1540,7 @@ int32_t CMSISDAP::ROM_TABLE::readPid()
 	if (pid.JEDEC)
 	{
 		_DBGPRT("      Designer          : %s (JEP106 CONT.:%x, ID:%x)\n",
+			pid.isARM() ? "ARM" :
 			pid.JEP106CONTINUATION == 0x0 && pid.JEP106ID == 0x01 ? "AMD" :
 			pid.JEP106CONTINUATION == 0x0 && pid.JEP106ID == 0x0E ? "Freescale(Motorola)" :
 			pid.JEP106CONTINUATION == 0x0 && pid.JEP106ID == 0x15 ? "NXP(Philips)" :
@@ -1549,7 +1550,6 @@ int32_t CMSISDAP::ROM_TABLE::readPid()
 			pid.JEP106CONTINUATION == 0x0 && pid.JEP106ID == 0x34 ? "Cypress" :
 			pid.JEP106CONTINUATION == 0x0 && pid.JEP106ID == 0x48 ? "Apple Computer" :
 			pid.JEP106CONTINUATION == 0x0 && pid.JEP106ID == 0x49 ? "Xilinx" :
-			pid.JEP106CONTINUATION == 0x4 && pid.JEP106ID == 0x3B ? "ARM" :
 			"UNKNOWN",
 			pid.JEP106CONTINUATION, pid.JEP106ID);
 	}
@@ -1583,7 +1583,7 @@ int32_t CMSISDAP::ROM_TABLE::read()
 	if (ret != CMSISDAP_OK)
 		return ret;
 
-	if (cid.ComponentClass != 0x1)
+	if (cid.ComponentClass != CID::ROM_TABLE)
 		return CMSISDAP_OK;
 
 	union ENTRY
@@ -1617,7 +1617,7 @@ int32_t CMSISDAP::ROM_TABLE::read()
 		{
 			_DBGPRT("    Present      : %s\n", entry.PRESENT ? "yes" : "no");
 			if (entry.PWR_DOMAIN_ID_VAILD)
-				_DBGPRT("    Power Domain ID : %s\n", entry.PWR_DOMAIN_ID);
+				_DBGPRT("    Power Domain ID : %x\n", entry.PWR_DOMAIN_ID);
 
 			if (entry.PRESENT && entry.addr() != 0)
 			{

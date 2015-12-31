@@ -203,10 +203,21 @@ private:
 	private:
 		union CID
 		{
+			enum Class
+			{
+				GENERIC_VERIFICATION	= 0x0,
+				ROM_TABLE				= 0x1,
+				DEBUG_COMPONENT			= 0x9,
+				PERIPHERAL_TEST_BLOCK	= 0xB,
+				OPTIMO_DE				= 0xD,
+				GENERIC_IP				= 0xE,
+				PRIME_CELL				= 0xF
+			};
+
 			struct
 			{
 				uint32_t Preamble0		: 12;
-				uint32_t ComponentClass	: 4;
+				Class ComponentClass	: 4;
 				uint32_t Preamble1		: 16;
 			};
 			struct
@@ -236,6 +247,8 @@ private:
 				uint8_t uint8[8];
 			};
 			uint64_t raw;
+
+			bool isARM() { return JEP106CONTINUATION == 0x4 && JEP106ID == 0x3B ? true : false; }
 		};
 		static_assert(CONFIRM_SIZE(PID, uint64_t));
 
