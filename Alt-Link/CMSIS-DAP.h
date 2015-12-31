@@ -255,11 +255,13 @@ private:
 	private:
 		MEM_AP& ap;
 		uint32_t base;
+		char* name;
 
 		CID cid;
 		PID pid;
 		
 		int32_t readPid();
 		int32_t readCid();
+		const char* getName();
 	};
 };

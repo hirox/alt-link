@@ -1561,6 +1561,55 @@ int32_t CMSISDAP::ROM_TABLE::readPid()
 	return CMSISDAP_OK;
 }
 
+const char* CMSISDAP::ROM_TABLE::getName()
+{
+	if (cid.ComponentClass == CID::ROM_TABLE)
+		return "ROM_TABLE";
+	
+	if (cid.ComponentClass == CID::GENERIC_IP)
+	{
+		if (pid.isARM())
+		{
+			switch (pid.PART)
+			{
+			case 0:
+				return "Cortex-M3 SCS (System Control Space)";
+			case 1:
+				return "Cortex-M3/M4/M7 ITM (Instrumentation Trace Macrocell unit)";
+			case 2:
+				return "Cortex-M3/M4/M7 DWT (Data Watchpoint and Trace unit)";
+			case 3:
+				return "Cortex-M3/M4 FBP (Flash Patch and Breakpoint unit)";
+			case 6:
+				return "Cortex-M7 CTI (Cross Trigger Interface)";
+			case 8:
+				return "Cortex-M0/M0+ SCS (System Control Space)";
+			case 0xA:
+				return "Cortex-M0/M0+ DWT (Data Watchpoint and Trace unit)";
+			case 0xB:
+				return "Cortex-M0/M0+ BPU (Break Point Unit)";	// Subset of FBP
+			case 0xC:
+				return "Cortex-M4/M7(w/o FPU) SCS (System Control Space)";
+			case 0xE:
+				return "Cortex-M7 FBP (Flash Patch and Breakpoint unit)";
+			}
+		}
+	}
+	
+	if (cid.ComponentClass == CID::DEBUG_COMPONENT)
+	{
+		if (pid.isARM() && pid.PART == 0x923)
+			return "Cortex-M3 TPIU (Trace Port Interface Unit)";
+		if (pid.isARM() && pid.PART == 0x9A1)
+			return "Cortex-M4 TPIU (Trace Port Interface Unit)";
+
+		//if (pid.isARM() && pid.PART == 0x)
+		//	return "Cortex-M3 ETM";
+	}
+
+	return "UNKNOWN";
+}
+
 int32_t CMSISDAP::ROM_TABLE::read()
 {
 	int ret;
@@ -1582,6 +1631,8 @@ int32_t CMSISDAP::ROM_TABLE::read()
 	ret = readCid();
 	if (ret != CMSISDAP_OK)
 		return ret;
+
+	_DBGPRT("    NAME    : %s\n", getName());
 
 	if (cid.ComponentClass != CID::ROM_TABLE)
 		return CMSISDAP_OK;
