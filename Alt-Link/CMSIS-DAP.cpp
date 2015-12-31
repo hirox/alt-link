@@ -1452,7 +1452,8 @@ int32_t CMSISDAP::ROM_TABLE::read()
 		if (entry.raw == 0x00)
 			break;
 
-		_DBGPRT("  ENTRY          : 0x%08x\n", entry.raw);
+		uint32_t entryAddr = component.base + entry.addr();
+		_DBGPRT("  ENTRY          : 0x%08x (0x%08x)\n", entry.raw, entryAddr);
 		if (entry.FORMAT)
 		{
 			_DBGPRT("    Present      : %s\n", entry.PRESENT ? "yes" : "no");
@@ -1461,7 +1462,7 @@ int32_t CMSISDAP::ROM_TABLE::read()
 
 			if (entry.present())
 			{
-				Component child(component.ap, component.base + entry.addr());
+				Component child(component.ap, entryAddr);
 				
 				ret = child.read();
 				if (ret != CMSISDAP_OK)
@@ -1487,9 +1488,16 @@ int32_t CMSISDAP::ROM_TABLE::read()
 						ARMv6MSCS::CPUID cpuid;
 						if (scs.readCPUID(&cpuid) == CMSISDAP_OK)
 							scs.printCPUID(cpuid);
+						scs.printDEMCR();
 						ARMv6MSCS::DFSR dfsr;
 						if (scs.readDFSR(&dfsr) == CMSISDAP_OK)
 							scs.printDFSR(dfsr);
+						scs.printDHCSR();
+
+						// Debug state でないとレジスタ値は読めない
+						scs.halt();
+						scs.printRegs();
+						scs.run();
 					}
 				}
 				entries.push_back(std::make_pair(entry, child));

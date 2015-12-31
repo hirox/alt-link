@@ -30,6 +30,7 @@
 #define CMSISDAP_ERR_USBHID_WRITE				10
 #define CMSISDAP_ERR_USBHID_TIMEOUT				11
 #define CMSISDAP_ERR_USBHID_EXIT				12
+#define CMSISDAP_ERR_INVALID_STATUS				13
 
 #define CONFIRM_SIZE(typeA, typeB) sizeof(typeA) == sizeof(typeB), "sizeof(" #typeA ") should be same as sizeof(" #typeB ")"
 #define CONFIRM_UINT32(type) CONFIRM_SIZE(type, uint32_t)
@@ -368,11 +369,19 @@ private:
 		void printCPUID(const CPUID& cpuid);
 		void printDFSR(const DFSR& dfsr);
 		void printRegs();
+		void printDHCSR();
+		void printDEMCR();
+
+		int32_t halt(bool maskIntr = false);
+		int32_t run(bool maskIntr = false);
+		int32_t step(bool maskIntr = false);
 
 	private:
 		MEM_AP& ap;
 		uint32_t base;
 
 		CPUID cpuid;
+
+		int32_t waitForRegReady();
 	};
 };

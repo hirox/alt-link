@@ -4,6 +4,9 @@
 
 #include "CMSIS-DAP.h"
 
+#include <thread>
+#include <chrono>
+
 #define _DBGPRT printf
 
 #define REG_ACTLR	(base + 0x008)
@@ -28,7 +31,7 @@ union DHCSR_R
 	{
 		uint32_t C_DEBUGEN	: 1;
 		uint32_t C_HALT		: 1;
-		uint32_t C_STP		: 1;
+		uint32_t C_STEP		: 1;
 		uint32_t C_MASKINTS	: 1;
 		uint32_t Reserved0	: 12;
 
@@ -51,7 +54,7 @@ union DHCSR_W
 	{
 		uint32_t C_DEBUGEN	: 1;
 		uint32_t C_HALT		: 1;
-		uint32_t C_STP		: 1;
+		uint32_t C_STEP		: 1;
 		uint32_t C_MASKINTS	: 1;
 		uint32_t Reserved0	: 12;
 
@@ -170,6 +173,29 @@ void CMSISDAP::ARMv6MSCS::printDFSR(const DFSR& dfsr)
 		dfsr.HALTED ? "HALTED" : "");
 }
 
+int32_t CMSISDAP::ARMv6MSCS::waitForRegReady()
+{
+	int ret;
+
+	while (1)
+	{
+		DHCSR_R d;
+		ret = ap.read(REG_DHCSR, &d.raw);
+		if (ret != CMSISDAP_OK)
+			return ret;
+
+		if (d.C_HALT == 0)
+			return CMSISDAP_ERR_INVALID_STATUS;
+
+		if (d.S_REGRDY == 1)
+			break;
+
+		std::this_thread::sleep_for(std::chrono::milliseconds(1));
+	}
+
+	return CMSISDAP_OK;
+}
+
 int32_t CMSISDAP::ARMv6MSCS::readReg(REGSEL reg, uint32_t* data)
 {
 	if (data == nullptr)
@@ -182,11 +208,15 @@ int32_t CMSISDAP::ARMv6MSCS::readReg(REGSEL reg, uint32_t* data)
 	dcrsr.raw = 0;
 	dcrsr.REGSEL = reg;
 
-	int32_t ret = ap.write(0xE000EDF4, dcrsr.raw);
+	int ret = ap.write(REG_DCRSR, dcrsr.raw);
 	if (ret != CMSISDAP_OK)
 		return ret;
 
-	ret = ap.read(0xE000EDF8, data);
+	waitForRegReady();
+	if (ret != CMSISDAP_OK)
+		return ret;
+
+	ret = ap.read(REG_DCRDR, data);
 	if (ret != CMSISDAP_OK)
 		return ret;
 
@@ -198,7 +228,7 @@ int32_t CMSISDAP::ARMv6MSCS::writeReg(REGSEL reg, uint32_t data)
 	if (reg == 19 || reg > 20)
 		return CMSISDAP_ERR_INVALID_ARGUMENT;
 
-	int32_t ret = ap.write(0xE000EDF8, data);
+	int ret = ap.write(REG_DCRDR, data);
 	if (ret != CMSISDAP_OK)
 		return ret;
 
@@ -207,7 +237,11 @@ int32_t CMSISDAP::ARMv6MSCS::writeReg(REGSEL reg, uint32_t data)
 	dcrsr.REGSEL = reg;
 	dcrsr.REGWnR = 1;
 
-	ret = ap.write(0xE000EDF4, dcrsr.raw);
+	ret = ap.write(REG_DCRSR, dcrsr.raw);
+	if (ret != CMSISDAP_OK)
+		return ret;
+
+	ret = waitForRegReady();
 	if (ret != CMSISDAP_OK)
 		return ret;
 
@@ -256,3 +290,107 @@ void CMSISDAP::ARMv6MSCS::printRegs()
 		, data[0], data[1], data[2], data[3]);
 }
 
+void CMSISDAP::ARMv6MSCS::printDHCSR()
+{
+	DHCSR_R d;
+	if (ap.read(REG_DHCSR, &d.raw) != CMSISDAP_OK)
+		return;
+
+	_DBGPRT("    DHCSR          : 0x%08x\n", d.raw);
+	_DBGPRT("      C_DEBUGEN  : %x C_HALT    : %x C_STEP : %x C_MASKINTS: %x\n"
+		, d.C_DEBUGEN, d.C_HALT, d.C_STEP, d.C_MASKINTS);
+	_DBGPRT("      S_REGRDY   : %x S_HALT    : %x S_SLEEP: %x S_LOCKUP  : %x\n"
+		, d.S_REGRDY, d.S_HALT, d.S_SLEEP, d.S_LOCKUP);
+	_DBGPRT("      S_RETIRE_ST: %x S_RESET_ST: %x\n"
+		, d.S_RETIRE_ST, d.S_RESET_ST);
+}
+
+void CMSISDAP::ARMv6MSCS::printDEMCR()
+{
+	DEMCR d;
+	if (ap.read(REG_DEMCR, &d.raw) != CMSISDAP_OK)
+		return;
+
+	_DBGPRT("    DEMCR         : 0x%08x\n", d.raw);
+	_DBGPRT("      DWT         : %s\n", d.DWTENA ? "enabled" : "disabled");
+	_DBGPRT("      HardFault   : %s\n", d.VC_HARDERR ? "tarp" : "don't trap");
+	_DBGPRT("      ResetVector : %s\n", d.VC_CORERESET ? "trap" : "don't trap");
+}
+
+int32_t CMSISDAP::ARMv6MSCS::halt(bool maskIntr)
+{
+	int32_t ret;
+	DHCSR_W d;
+	d.raw = 0;
+
+	d.DBGKEY = 0xA05F;
+	d.C_DEBUGEN = 1;
+	d.C_HALT = 1;
+	d.C_STEP = 0;
+	d.C_MASKINTS = maskIntr ? 1 : 0;
+
+	ret = ap.write(REG_DHCSR, d.raw);
+	if (ret != CMSISDAP_OK)
+		return ret;
+
+	return CMSISDAP_OK;
+}
+
+int32_t CMSISDAP::ARMv6MSCS::run(bool maskIntr)
+{
+	int32_t ret;
+	DHCSR_W d;
+	ret = ap.read(REG_DHCSR, &d.raw);
+	if (ret != CMSISDAP_OK)
+		return ret;
+
+	uint32_t mask = maskIntr ? 1 : 0;
+	if (mask != d.C_MASKINTS)
+	{
+		ret = halt(maskIntr);
+		if (ret != CMSISDAP_OK)
+			return ret;
+	}
+
+	d.DBGKEY = 0xA05F;
+	d.C_DEBUGEN = 1;
+	d.C_HALT = 0;
+	d.C_STEP = 0;
+	d.C_MASKINTS = maskIntr ? 1 : 0;
+
+	ret = ap.write(REG_DHCSR, d.raw);
+	if (ret != CMSISDAP_OK)
+		return ret;
+
+	return CMSISDAP_OK;
+}
+
+int32_t CMSISDAP::ARMv6MSCS::step(bool maskIntr)
+{
+	int32_t ret;
+	DHCSR_R r;
+	ret = ap.read(REG_DHCSR, &r.raw);
+	if (ret != CMSISDAP_OK)
+		return ret;
+
+	if (!r.C_DEBUGEN || !r.S_HALT)
+	{
+		ret = halt();
+		if (ret != CMSISDAP_OK)
+			return ret;
+	}
+
+	DHCSR_W w;
+	w.raw = 0;
+	w.DBGKEY = 0xA05F;
+	w.C_DEBUGEN = 1;
+	w.C_HALT = 0;
+	w.C_STEP = 1;
+	w.C_MASKINTS = maskIntr ? 1 : 0;
+
+	ret = ap.write(REG_DHCSR, w.raw);
+	if (ret != CMSISDAP_OK)
+		return ret;
+
+	return CMSISDAP_OK;
+}
