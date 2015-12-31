@@ -5,6 +5,7 @@
 #include "common.h"
 
 #include <sstream>
+#include <iterator>
 
 void RemoteSerialProtocol::processQuery(const std::string& payload)
 {
@@ -92,7 +93,7 @@ void RemoteSerialProtocol::processBreakWatchPoint(const std::string& payload)
 	}
 
 	uint64_t addr;
-	auto delimiter1 = Converter::extract(payload, ',', 3, false, &addr);
+	auto delimiter1 = Converter::extract(payload, 3, ',', false, &addr);
 
 	if (delimiter1 == payload.npos)
 	{
@@ -100,7 +101,7 @@ void RemoteSerialProtocol::processBreakWatchPoint(const std::string& payload)
 	}
 
 	int32_t kind;
-	auto delimiter2 = Converter::extract(payload, ';', delimiter1 + 1, true, &kind);
+	auto delimiter2 = Converter::extract(payload, delimiter1 + 1, ';', true, &kind);
 
 	switch (payload[1])
 	{
