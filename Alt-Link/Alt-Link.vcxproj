@@ -94,6 +94,8 @@
     <ClInclude Include="targetver.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="ARMv6MSCS.cpp" />
+    <ClCompile Include="Component.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="CMSIS-DAP.cpp" />
     <ClCompile Include="Converter.cpp" />

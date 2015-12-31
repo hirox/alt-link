@@ -158,7 +158,7 @@ private:
 	class DP
 	{
 	public:
-		DP(DAP& da) : dap(da) {}
+		DP(DAP& _dap) : dap(_dap) {}
 		int32_t read(uint32_t reg, uint32_t *data);
 		int32_t write(uint32_t reg, uint32_t val);
 
@@ -169,7 +169,7 @@ private:
 	class AP
 	{
 	public:
-		AP(DAP& da, DP& d) : dap(da), dp(d) {}
+		AP(DAP& _dap, DP& _dp) : dap(_dap), dp(_dp) {}
 		int32_t read(uint32_t ap, uint32_t reg, uint32_t *data);
 		int32_t write(uint32_t ap, uint32_t reg, uint32_t val);
 
@@ -185,7 +185,7 @@ private:
 	class MEM_AP
 	{
 	public:
-		MEM_AP(uint32_t i, AP& a) : index(i), ap(a) {}
+		MEM_AP(uint32_t _index, AP& _ap) : index(_index), ap(_ap) {}
 		int32_t read(uint32_t addr, uint32_t *data);
 		int32_t write(uint32_t addr, uint32_t val);
 
@@ -194,11 +194,19 @@ private:
 		uint32_t index;
 	};
 
-	class ROM_TABLE
+	class Component
 	{
 	public:
-		ROM_TABLE(MEM_AP& a, uint32_t b) : ap(a), base(b) {}
+		Component(MEM_AP& _ap, uint32_t _base) : ap(_ap), base(_base) {}
+
 		int32_t read();
+		void print();
+		bool isRomTable();
+		bool isARMv6MSCS();
+
+	public:
+		MEM_AP& ap;
+		uint32_t base;
 
 	private:
 		union CID
@@ -227,7 +235,7 @@ private:
 			uint32_t raw;
 		};
 		static_assert(CONFIRM_SIZE(CID, uint32_t));
-		
+
 		union PID
 		{
 			struct
@@ -253,15 +261,91 @@ private:
 		static_assert(CONFIRM_SIZE(PID, uint64_t));
 
 	private:
-		MEM_AP& ap;
-		uint32_t base;
-		char* name;
-
 		CID cid;
 		PID pid;
-		
+
+	private:
 		int32_t readPid();
 		int32_t readCid();
 		const char* getName();
+	};
+
+	class ROM_TABLE
+	{
+	public:
+		ROM_TABLE(Component& _component) : component(_component) {}
+
+		int32_t read();
+
+	private:
+		union Entry
+		{
+			struct
+			{
+				uint32_t PRESENT				: 1;
+				uint32_t FORMAT					: 1;
+				uint32_t PWR_DOMAIN_ID_VAILD	: 1;
+				uint32_t RESERVED0				: 1;
+				uint32_t PWR_DOMAIN_ID			: 5;
+				uint32_t RESERVED1				: 3;
+				uint32_t ADDRESS_OFFSET			: 24;
+			};
+			uint32_t raw;
+			uint32_t addr() { return raw & 0xFFFFF000; }
+			bool present() { return FORMAT && PRESENT && addr() != 0 ? true : false; }
+		};
+
+	private:
+		Component& component;
+
+		bool sysmem;
+		std::vector<std::pair<Entry, Component>> entries;
+	};
+
+	class ARMv6MSCS
+	{
+	public:
+		union CPUID
+		{
+			struct
+			{
+				uint32_t Revision		: 4;
+				uint32_t PartNo			: 12;
+				uint32_t Architecture	: 4;
+				uint32_t Variant		: 4;
+				uint32_t Implementer	: 8;
+			};
+			uint32_t raw;
+		};
+		static_assert(CONFIRM_UINT32(CPUID));
+
+		union DFSR
+		{
+			struct
+			{
+				uint32_t HALTED			: 1;
+				uint32_t BKPT			: 1;
+				uint32_t DWTTRAP		: 1;
+				uint32_t VCATCH			: 1;
+				uint32_t EXTERNAL		: 1;
+				uint32_t Reserved		: 27;
+			};
+			uint32_t raw;
+		};
+		static_assert(CONFIRM_UINT32(DFSR));
+
+	public:
+		ARMv6MSCS(MEM_AP& _ap, uint32_t _base) : ap(_ap), base(_base) {}
+
+		int32_t readCPUID(CPUID* cpuid);
+		int32_t readDFSR(DFSR* dfsr);
+		void printCPUID(const CPUID& cpuid);
+		void printDFSR(const DFSR& dfsr);
+
+	private:
+		MEM_AP& ap;
+		uint32_t base;
+
+		CPUID cpuid;
 	};
 };
