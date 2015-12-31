@@ -203,7 +203,7 @@ private:
 	private:
 		union CID
 		{
-			enum Class
+			enum Class : uint32_t
 			{
 				GENERIC_VERIFICATION	= 0x0,
 				ROM_TABLE				= 0x1,
