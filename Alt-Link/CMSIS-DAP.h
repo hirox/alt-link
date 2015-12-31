@@ -334,13 +334,40 @@ private:
 		};
 		static_assert(CONFIRM_UINT32(DFSR));
 
+		enum REGSEL : uint32_t
+		{
+			R0		= 0,
+			R1		= 1,
+			R2		= 2,
+			R3		= 3,
+			R4		= 4,
+			R5		= 5,
+			R6		= 6,
+			R7		= 7,
+			R8		= 8,
+			R9		= 9,
+			R10		= 10,
+			R11		= 11,
+			R12		= 12,
+			SP		= 13,
+			LR		= 14,
+			DebugReturnAddress	= 15,
+			xPSR	= 16,
+			MSP		= 17,
+			PSP		= 18,
+			CONTROL_PRIMASK		= 20
+		};
+
 	public:
 		ARMv6MSCS(MEM_AP& _ap, uint32_t _base) : ap(_ap), base(_base) {}
 
 		int32_t readCPUID(CPUID* cpuid);
 		int32_t readDFSR(DFSR* dfsr);
+		int32_t readReg(REGSEL reg, uint32_t* data);
+		int32_t writeReg(REGSEL reg, uint32_t data);
 		void printCPUID(const CPUID& cpuid);
 		void printDFSR(const DFSR& dfsr);
+		void printRegs();
 
 	private:
 		MEM_AP& ap;
