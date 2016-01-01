@@ -1,8 +1,5 @@
 
 #include "stdafx.h"
-#include "common.h"
-
-#include "CMSIS-DAP.h"
 
 #if defined(_WIN32)
 #undef strdup

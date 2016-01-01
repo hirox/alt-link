@@ -1,13 +1,12 @@
 
 #pragma once
 
-#include <cstdint>
+#include "stdafx.h"
+
 #include <string>
 #include <vector>
 #include <sstream>
 #include <iomanip>
-
-#include "common.h"
 
 class Converter
 {

@@ -1,8 +1,5 @@
 
 #include "stdafx.h"
-#include "common.h"
-
-#include "CMSIS-DAP.h"
 
 #include <thread>
 #include <chrono>

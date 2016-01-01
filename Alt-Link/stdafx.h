@@ -7,9 +7,12 @@
 
 #include "targetver.h"
 
-#include <stdio.h>
 #include <tchar.h>
+#include <cstdio>
+#include <cstdint>
+
+#include "assert.h"
+#include "CMSIS-DAP.h"
 
 #define POCO_STATIC
-
-// TODO: プログラムに必要な追加ヘッダーをここで参照してください。
+#define OK 0

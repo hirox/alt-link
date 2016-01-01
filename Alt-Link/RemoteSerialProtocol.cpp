@@ -2,7 +2,6 @@
 #include "stdafx.h"
 #include "RemoteSerialProtocol.h"
 #include "Converter.h"
-#include "common.h"
 
 #include <sstream>
 #include <iterator>
