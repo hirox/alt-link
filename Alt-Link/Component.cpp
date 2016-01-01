@@ -148,8 +148,16 @@ bool CMSISDAP::Component::isARMv6MDWT()
 {
 	if (cid.ComponentClass == CID::GENERIC_IP)
 		if (pid.isARM())
-			if (pid.PART == ARM_PART_DWT_M347 ||
-				pid.PART == ARM_PART_DWT_M00P)
+			if (pid.PART == ARM_PART_DWT_M00P)
+				return true;
+	return false;
+}
+
+bool CMSISDAP::Component::isARMv7MDWT()
+{
+	if (cid.ComponentClass == CID::GENERIC_IP)
+		if (pid.isARM())
+			if (pid.PART == ARM_PART_DWT_M347)
 				return true;
 	return false;
 }

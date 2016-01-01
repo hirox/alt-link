@@ -1500,10 +1500,13 @@ int32_t CMSISDAP::ROM_TABLE::read()
 					{
 						ARMv6MDWT dwt(child);
 						dwt.printPC();
+						dwt.printCtrl();
+					}
+					else if (child.isARMv7MDWT())
+					{
+						ARMv7MDWT dwt(child);
 						dwt.printPC();
-						dwt.printPC();
-						dwt.printPC();
-						dwt.printPC();
+						dwt.printCtrl();
 					}
 				}
 				entries.push_back(std::make_pair(entry, child));

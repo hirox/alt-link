@@ -215,6 +215,7 @@ private:
 		bool isRomTable();
 		bool isARMv6MSCS();
 		bool isARMv6MDWT();
+		bool isARMv7MDWT();
 
 	private:
 		union CID
@@ -389,12 +390,21 @@ private:
 		int32_t waitForRegReady();
 	};
 
-	class ARMv6MDWT : Memory
+	class ARMv6MDWT : public Memory
 	{
 	public:
 		ARMv6MDWT(Memory& memory) : Memory(memory) {}
 
 		int32_t getPC(uint32_t* pc);
 		void printPC();
+		void printCtrl();
+	};
+
+	class ARMv7MDWT : public ARMv6MDWT
+	{
+	public:
+		ARMv7MDWT(Memory& memory) : ARMv6MDWT(memory) {}
+
+		void printCtrl();
 	};
 };
