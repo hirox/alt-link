@@ -1,5 +1,6 @@
 
 #include "stdafx.h"
+#include "ADIv5.h"
 
 #include <thread>
 #include <chrono>
@@ -91,7 +92,7 @@ union DEMCR
 };
 static_assert(CONFIRM_UINT32(DEMCR));
 
-int32_t CMSISDAP::ARMv6MSCS::readCPUID(CPUID* cpuid)
+int32_t ADIv5::ARMv6MSCS::readCPUID(CPUID* cpuid)
 {
 	int32_t ret;
 
@@ -99,53 +100,53 @@ int32_t CMSISDAP::ARMv6MSCS::readCPUID(CPUID* cpuid)
 		return CMSISDAP_ERR_INVALID_ARGUMENT;
 
 	ret = ap.read(REG_CPUID, &cpuid->raw);
-	if (ret != CMSISDAP_OK)
+	if (ret != OK)
 		return ret;
 
-	return CMSISDAP_OK;
+	return OK;
 }
 
-void CMSISDAP::ARMv6MSCS::printCPUID(const CPUID& cpuid)
+void ADIv5::ARMv6MSCS::CPUID::print()
 {
-	_DBGPRT("    CPUID          : 0x%08x\n", cpuid.raw);
+	_DBGPRT("    CPUID          : 0x%08x\n", raw);
 	_DBGPRT("      Implementer  : %s\n",
-		cpuid.Implementer == 0x41 ? "ARM" :
-		cpuid.Implementer == 0x44 ? "DEC" :
-		cpuid.Implementer == 0x4D ? "Motorola/Freescale" :
-		cpuid.Implementer == 0x51 ? "QUALCOMM" :
-		cpuid.Implementer == 0x56 ? "Marvell" :
-		cpuid.Implementer == 0x69 ? "Intel" : "UNKNOWN");
+		Implementer == 0x41 ? "ARM" :
+		Implementer == 0x44 ? "DEC" :
+		Implementer == 0x4D ? "Motorola/Freescale" :
+		Implementer == 0x51 ? "QUALCOMM" :
+		Implementer == 0x56 ? "Marvell" :
+		Implementer == 0x69 ? "Intel" : "UNKNOWN");
 	_DBGPRT("      Architecture : %s\n",
-		cpuid.Architecture == 0x01 ? "ARMv4" :
-		cpuid.Architecture == 0x02 ? "ARMv4T" :
-		cpuid.Architecture == 0x03 ? "ARMv5" :
-		cpuid.Architecture == 0x04 ? "ARMv5T" :
-		cpuid.Architecture == 0x05 ? "ARMv5TE" :
-		cpuid.Architecture == 0x06 ? "ARMv5TEJ" :
-		cpuid.Architecture == 0x07 ? "ARMv6" :
-		cpuid.Architecture == 0x0C ? "ARMv6-M" :
-		cpuid.Architecture == 0x0F ? "ARMv7" : "UNKNOWN");
+		Architecture == 0x01 ? "ARMv4" :
+		Architecture == 0x02 ? "ARMv4T" :
+		Architecture == 0x03 ? "ARMv5" :
+		Architecture == 0x04 ? "ARMv5T" :
+		Architecture == 0x05 ? "ARMv5TE" :
+		Architecture == 0x06 ? "ARMv5TEJ" :
+		Architecture == 0x07 ? "ARMv6" :
+		Architecture == 0x0C ? "ARMv6-M" :
+		Architecture == 0x0F ? "ARMv7" : "UNKNOWN");
 	_DBGPRT("      Part number  : %s\n",
-		cpuid.PartNo == 0xC05 ? "Cortex-A5" :
-		cpuid.PartNo == 0xC07 ? "Cortex-A7" :
-		cpuid.PartNo == 0xC08 ? "Cortex-A8" :
-		cpuid.PartNo == 0xC09 ? "Cortex-A9" :
-		cpuid.PartNo == 0xC0D ? "Cortex-A12" :
-		cpuid.PartNo == 0xC0E ? "Cortex-A17" :
-		cpuid.PartNo == 0xC0F ? "Cortex-A15" :
-		cpuid.PartNo == 0xC14 ? "Cortex-R4" :
-		cpuid.PartNo == 0xC15 ? "Cortex-R5" :
-		cpuid.PartNo == 0xC17 ? "Cortex-R7" :
-		cpuid.PartNo == 0xC20 ? "Cortex-M0" :
-		cpuid.PartNo == 0xC21 ? "Cortex-M1" :
-		cpuid.PartNo == 0xC23 ? "Cortex-M3" :
-		cpuid.PartNo == 0xC24 ? "Cortex-M4" :
-		cpuid.PartNo == 0xC27 ? "Cortex-M7" :
-		cpuid.PartNo == 0xC60 ? "Cortex-M0+" : "UNKNOWN");
-	_DBGPRT("      Revision     : r%xp%x\n", cpuid.Variant, cpuid.Revision);
+		PartNo == 0xC05 ? "Cortex-A5" :
+		PartNo == 0xC07 ? "Cortex-A7" :
+		PartNo == 0xC08 ? "Cortex-A8" :
+		PartNo == 0xC09 ? "Cortex-A9" :
+		PartNo == 0xC0D ? "Cortex-A12" :
+		PartNo == 0xC0E ? "Cortex-A17" :
+		PartNo == 0xC0F ? "Cortex-A15" :
+		PartNo == 0xC14 ? "Cortex-R4" :
+		PartNo == 0xC15 ? "Cortex-R5" :
+		PartNo == 0xC17 ? "Cortex-R7" :
+		PartNo == 0xC20 ? "Cortex-M0" :
+		PartNo == 0xC21 ? "Cortex-M1" :
+		PartNo == 0xC23 ? "Cortex-M3" :
+		PartNo == 0xC24 ? "Cortex-M4" :
+		PartNo == 0xC27 ? "Cortex-M7" :
+		PartNo == 0xC60 ? "Cortex-M0+" : "UNKNOWN");
+	_DBGPRT("      Revision     : r%xp%x\n", Variant, Revision);
 }
 
-int32_t CMSISDAP::ARMv6MSCS::readDFSR(DFSR* dfsr)
+int32_t ADIv5::ARMv6MSCS::readDFSR(DFSR* dfsr)
 {
 	int32_t ret;
 
@@ -153,24 +154,24 @@ int32_t CMSISDAP::ARMv6MSCS::readDFSR(DFSR* dfsr)
 		return CMSISDAP_ERR_INVALID_ARGUMENT;
 
 	ret = ap.read(REG_DFSR, &dfsr->raw);
-	if (ret != CMSISDAP_OK)
+	if (ret != OK)
 		return ret;
 
-	return CMSISDAP_OK;
+	return OK;
 }
 
-void CMSISDAP::ARMv6MSCS::printDFSR(const DFSR& dfsr)
+void ADIv5::ARMv6MSCS::DFSR::print()
 {
-	_DBGPRT("    DFSR           : 0x%08x (%s%s%s%s%s%s)\n", dfsr.raw,
-		dfsr.raw == 0 ? "Running" : "",
-		dfsr.EXTERNAL ? "EXTERNAL" : "",
-		dfsr.VCATCH ? "VectorCatch" : "",
-		dfsr.DWTTRAP ? "DWTTRAP" : "",
-		dfsr.BKPT ? "BKPT" : "",
-		dfsr.HALTED ? "HALTED" : "");
+	_DBGPRT("    DFSR           : 0x%08x (%s%s%s%s%s%s)\n", raw,
+		raw == 0 ? "Running" : "",
+		EXTERNAL ? "EXTERNAL" : "",
+		VCATCH ? "VectorCatch" : "",
+		DWTTRAP ? "DWTTRAP" : "",
+		BKPT ? "BKPT" : "",
+		HALTED ? "HALTED" : "");
 }
 
-int32_t CMSISDAP::ARMv6MSCS::waitForRegReady()
+int32_t ADIv5::ARMv6MSCS::waitForRegReady()
 {
 	int ret;
 
@@ -178,7 +179,7 @@ int32_t CMSISDAP::ARMv6MSCS::waitForRegReady()
 	{
 		DHCSR_R d;
 		ret = ap.read(REG_DHCSR, &d.raw);
-		if (ret != CMSISDAP_OK)
+		if (ret != OK)
 			return ret;
 
 		if (d.C_HALT == 0)
@@ -187,13 +188,15 @@ int32_t CMSISDAP::ARMv6MSCS::waitForRegReady()
 		if (d.S_REGRDY == 1)
 			break;
 
+		// [TODO] timeout
+
 		std::this_thread::sleep_for(std::chrono::milliseconds(1));
 	}
 
-	return CMSISDAP_OK;
+	return OK;
 }
 
-int32_t CMSISDAP::ARMv6MSCS::readReg(REGSEL reg, uint32_t* data)
+int32_t ADIv5::ARMv6MSCS::readReg(REGSEL reg, uint32_t* data)
 {
 	if (data == nullptr)
 		return CMSISDAP_ERR_INVALID_ARGUMENT;
@@ -206,27 +209,27 @@ int32_t CMSISDAP::ARMv6MSCS::readReg(REGSEL reg, uint32_t* data)
 	dcrsr.REGSEL = reg;
 
 	int ret = ap.write(REG_DCRSR, dcrsr.raw);
-	if (ret != CMSISDAP_OK)
+	if (ret != OK)
 		return ret;
 
 	waitForRegReady();
-	if (ret != CMSISDAP_OK)
+	if (ret != OK)
 		return ret;
 
 	ret = ap.read(REG_DCRDR, data);
-	if (ret != CMSISDAP_OK)
+	if (ret != OK)
 		return ret;
 
-	return CMSISDAP_OK;
+	return OK;
 }
 
-int32_t CMSISDAP::ARMv6MSCS::writeReg(REGSEL reg, uint32_t data)
+int32_t ADIv5::ARMv6MSCS::writeReg(REGSEL reg, uint32_t data)
 {
 	if (reg == 19 || reg > 20)
 		return CMSISDAP_ERR_INVALID_ARGUMENT;
 
 	int ret = ap.write(REG_DCRDR, data);
-	if (ret != CMSISDAP_OK)
+	if (ret != OK)
 		return ret;
 
 	DCRSR dcrsr;
@@ -235,17 +238,17 @@ int32_t CMSISDAP::ARMv6MSCS::writeReg(REGSEL reg, uint32_t data)
 	dcrsr.REGWnR = 1;
 
 	ret = ap.write(REG_DCRSR, dcrsr.raw);
-	if (ret != CMSISDAP_OK)
+	if (ret != OK)
 		return ret;
 
 	ret = waitForRegReady();
-	if (ret != CMSISDAP_OK)
+	if (ret != OK)
 		return ret;
 
-	return CMSISDAP_OK;
+	return OK;
 }
 
-void CMSISDAP::ARMv6MSCS::printRegs()
+void ADIv5::ARMv6MSCS::printRegs()
 {
 	uint32_t data[4];
 
@@ -287,10 +290,10 @@ void CMSISDAP::ARMv6MSCS::printRegs()
 		, data[0], data[1], data[2], data[3]);
 }
 
-void CMSISDAP::ARMv6MSCS::printDHCSR()
+void ADIv5::ARMv6MSCS::printDHCSR()
 {
 	DHCSR_R d;
-	if (ap.read(REG_DHCSR, &d.raw) != CMSISDAP_OK)
+	if (ap.read(REG_DHCSR, &d.raw) != OK)
 		return;
 
 	_DBGPRT("    DHCSR          : 0x%08x\n", d.raw);
@@ -302,10 +305,10 @@ void CMSISDAP::ARMv6MSCS::printDHCSR()
 		, d.S_RETIRE_ST, d.S_RESET_ST);
 }
 
-void CMSISDAP::ARMv6MSCS::printDEMCR()
+void ADIv5::ARMv6MSCS::printDEMCR()
 {
 	DEMCR d;
-	if (ap.read(REG_DEMCR, &d.raw) != CMSISDAP_OK)
+	if (ap.read(REG_DEMCR, &d.raw) != OK)
 		return;
 
 	_DBGPRT("    DEMCR         : 0x%08x\n", d.raw);
@@ -314,7 +317,7 @@ void CMSISDAP::ARMv6MSCS::printDEMCR()
 	_DBGPRT("      ResetVector : %s\n", d.VC_CORERESET ? "trap" : "don't trap");
 }
 
-int32_t CMSISDAP::ARMv6MSCS::halt(bool maskIntr)
+int32_t ADIv5::ARMv6MSCS::halt(bool maskIntr)
 {
 	int32_t ret;
 	DHCSR_W d;
@@ -327,25 +330,25 @@ int32_t CMSISDAP::ARMv6MSCS::halt(bool maskIntr)
 	d.C_MASKINTS = maskIntr ? 1 : 0;
 
 	ret = ap.write(REG_DHCSR, d.raw);
-	if (ret != CMSISDAP_OK)
+	if (ret != OK)
 		return ret;
 
-	return CMSISDAP_OK;
+	return OK;
 }
 
-int32_t CMSISDAP::ARMv6MSCS::run(bool maskIntr)
+int32_t ADIv5::ARMv6MSCS::run(bool maskIntr)
 {
 	int32_t ret;
 	DHCSR_W d;
 	ret = ap.read(REG_DHCSR, &d.raw);
-	if (ret != CMSISDAP_OK)
+	if (ret != OK)
 		return ret;
 
 	uint32_t mask = maskIntr ? 1 : 0;
 	if (mask != d.C_MASKINTS)
 	{
 		ret = halt(maskIntr);
-		if (ret != CMSISDAP_OK)
+		if (ret != OK)
 			return ret;
 	}
 
@@ -356,24 +359,24 @@ int32_t CMSISDAP::ARMv6MSCS::run(bool maskIntr)
 	d.C_MASKINTS = maskIntr ? 1 : 0;
 
 	ret = ap.write(REG_DHCSR, d.raw);
-	if (ret != CMSISDAP_OK)
+	if (ret != OK)
 		return ret;
 
-	return CMSISDAP_OK;
+	return OK;
 }
 
-int32_t CMSISDAP::ARMv6MSCS::step(bool maskIntr)
+int32_t ADIv5::ARMv6MSCS::step(bool maskIntr)
 {
 	int32_t ret;
 	DHCSR_R r;
 	ret = ap.read(REG_DHCSR, &r.raw);
-	if (ret != CMSISDAP_OK)
+	if (ret != OK)
 		return ret;
 
 	if (!r.C_DEBUGEN || !r.S_HALT)
 	{
 		ret = halt();
-		if (ret != CMSISDAP_OK)
+		if (ret != OK)
 			return ret;
 	}
 
@@ -386,8 +389,8 @@ int32_t CMSISDAP::ARMv6MSCS::step(bool maskIntr)
 	w.C_MASKINTS = maskIntr ? 1 : 0;
 
 	ret = ap.write(REG_DHCSR, w.raw);
-	if (ret != CMSISDAP_OK)
+	if (ret != OK)
 		return ret;
 
-	return CMSISDAP_OK;
+	return OK;
 }

@@ -1,5 +1,6 @@
 
 #include "stdafx.h"
+#include "ADIv5.h"
 
 #define _DBGPRT printf
 
@@ -59,44 +60,44 @@ union DWT_CTRL_V7M
 };
 static_assert(CONFIRM_UINT32(DWT_CTRL_V7M));
 
-int32_t CMSISDAP::ARMv6MDWT::getPC(uint32_t* pc)
+int32_t ADIv5::ARMv6MDWT::getPC(uint32_t* pc)
 {
 	if (pc == nullptr)
 		return CMSISDAP_ERR_INVALID_ARGUMENT;
 
 	int ret = ap.read(REG_DWT_PCSR, pc);
-	if (ret != CMSISDAP_OK)
+	if (ret != OK)
 		return ret;
 
-	return CMSISDAP_OK;
+	return OK;
 }
 
-void CMSISDAP::ARMv6MDWT::printPC()
+void ADIv5::ARMv6MDWT::printPC()
 {
 	uint32_t pc;
 	int ret = getPC(&pc);
-	if (ret != CMSISDAP_OK)
+	if (ret != OK)
 		return;
 
 	_DBGPRT("    PC : 0x%08x\n", pc);
 }
 
-void CMSISDAP::ARMv6MDWT::printCtrl()
+void ADIv5::ARMv6MDWT::printCtrl()
 {
 	DWT_CTRL_V6M data;
 	int ret = ap.read(REG_DWT_CTRL, &data.raw);
-	if (ret != CMSISDAP_OK)
+	if (ret != OK)
 		return;
 
 	_DBGPRT("    DWT_CTRL : 0x%08x\n", data.raw);
 	_DBGPRT("      NUMCOMP: %x\n", data.NUMCOMP);
 }
 
-void CMSISDAP::ARMv7MDWT::printCtrl()
+void ADIv5::ARMv7MDWT::printCtrl()
 {
 	DWT_CTRL_V7M data;
 	int ret = ap.read(REG_DWT_CTRL, &data.raw);
-	if (ret != CMSISDAP_OK)
+	if (ret != OK)
 		return;
 
 	_DBGPRT("    DWT_CTRL     : 0x%08x\n", data.raw);

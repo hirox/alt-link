@@ -83,9 +83,12 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="ADIv5.h" />
     <ClInclude Include="assert.h" />
     <ClInclude Include="CMSIS-DAP.h" />
     <ClInclude Include="Converter.h" />
+    <ClInclude Include="DAP.h" />
+    <ClInclude Include="error.h" />
     <ClInclude Include="PacketTransfer.h" />
     <ClInclude Include="RemoteSerialProtocol.h" />
     <ClInclude Include="stdafx.h" />
@@ -93,6 +96,7 @@
     <ClInclude Include="targetver.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="ADIv5.cpp" />
     <ClCompile Include="ARMv6MDWT.cpp" />
     <ClCompile Include="ARMv6MSCS.cpp" />
     <ClCompile Include="Component.cpp" />

@@ -1,6 +1,6 @@
 ﻿
 #include "stdafx.h"
-#include <stdint.h>
+#include "ADIv5.h"
 
 #include <Poco/Net/ServerSocket.h>
 #include <Poco/Net/TCPServer.h>
@@ -69,14 +69,51 @@ public:
 
 int _tmain(int argc, _TCHAR* argv[])
 {
-	static const uint16_t PORT = 1234;
-
 #if 0
 	CMSISDAP dap;
-	dap.initialize();
-	return 0;
+	int32_t ret = dap.initialize();
+	if (ret != OK)
+	{
+		_ERRPRT("Failed to initialize CMSIS-DAP device. (0x%08x)\n", ret);
+		return ret;
+	}
+
+	// magic packetを送り、SWD へ移行
+	ret = dap.jtagToSwd();
+	if (ret != OK) {
+		_ERRPRT("Failed to switch to SWD mode. (0x%08x)\n", ret);
+		return ret;
+	}
+
+	ADIv5 adi(dap);
+	// SWD 移行直後は Reset State なので IDCODE を読んで解除する
+	ADIv5::DP_IDCODE idcode;
+	ret = adi.getIDCODE(&idcode);
+	if (ret != OK)
+	{
+		_ERRPRT("Could not read DP_IDCODE. (0x%08x)\n", ret);
+		return ret;
+	}
+	idcode.print();
+
+#if 0
+	ret = dap.resetLink();
+	if (ret != OK) {
+		(void)dap.cmdLed(CMSISDAP::RUNNING, false);
+		return ret;
+	}
 #endif
 
+	adi.powerupDebug();
+	adi.scanAPs();
+
+	ret = dap.cmdLed(CMSISDAP::RUNNING, false);
+	if (ret != OK) {
+		return ret;
+	}
+#endif
+
+	static const uint16_t PORT = 1234;
 	Poco::Net::ServerSocket socket(PORT);
 	socket.listen();
 

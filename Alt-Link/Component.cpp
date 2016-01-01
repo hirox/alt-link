@@ -1,9 +1,10 @@
 
 #include "stdafx.h"
+#include "ADIv5.h"
 
 #define _DBGPRT printf
 
-int32_t CMSISDAP::Component::readCid()
+int32_t ADIv5::Component::readCid()
 {
 	int ret;
 	uint32_t data;
@@ -11,29 +12,29 @@ int32_t CMSISDAP::Component::readCid()
 	cid.raw = 0;
 
 	ret = ap.read(base + 0xFF0, &data);
-	if (ret != CMSISDAP_OK)
+	if (ret != OK)
 		return ret;
 	cid.uint8[0] = data;
 
 	ret = ap.read(base + 0xFF4, &data);
-	if (ret != CMSISDAP_OK)
+	if (ret != OK)
 		return ret;
 	cid.uint8[1] = data;
 
 	ret = ap.read(base + 0xFF8, &data);
-	if (ret != CMSISDAP_OK)
+	if (ret != OK)
 		return ret;
 	cid.uint8[2] = data;
 
 	ret = ap.read(base + 0xFFC, &data);
-	if (ret != CMSISDAP_OK)
+	if (ret != OK)
 		return ret;
 	cid.uint8[3] = data;
 
-	return CMSISDAP_OK;
+	return OK;
 }
 
-int32_t CMSISDAP::Component::readPid()
+int32_t ADIv5::Component::readPid()
 {
 	int ret;
 	uint32_t data;
@@ -41,31 +42,31 @@ int32_t CMSISDAP::Component::readPid()
 	pid.raw = 0;
 
 	ret = ap.read(base + 0xFE0, &data);
-	if (ret != CMSISDAP_OK)
+	if (ret != OK)
 		return ret;
 	pid.uint8[0] = data;
 
 	ret = ap.read(base + 0xFE4, &data);
-	if (ret != CMSISDAP_OK)
+	if (ret != OK)
 		return ret;
 	pid.uint8[1] = data;
 
 	ret = ap.read(base + 0xFE8, &data);
-	if (ret != CMSISDAP_OK)
+	if (ret != OK)
 		return ret;
 	pid.uint8[2] = data;
 
 	ret = ap.read(base + 0xFEC, &data);
-	if (ret != CMSISDAP_OK)
+	if (ret != OK)
 		return ret;
 	pid.uint8[3] = data;
 
 	ret = ap.read(base + 0xFD0, &data);
-	if (ret != CMSISDAP_OK)
+	if (ret != OK)
 		return ret;
 	pid.uint8[4] = data;
 
-	return CMSISDAP_OK;
+	return OK;
 }
 
 enum
@@ -84,7 +85,7 @@ enum
 	ARM_PART_TPIU_M4	= 0x9A1
 };
 
-const char* CMSISDAP::Component::getName()
+const char* ADIv5::Component::getName()
 {
 	if (cid.ComponentClass == CID::ROM_TABLE)
 		return "ROM_TABLE";
@@ -133,7 +134,7 @@ const char* CMSISDAP::Component::getName()
 	return "UNKNOWN";
 }
 
-bool CMSISDAP::Component::isARMv6MSCS()
+bool ADIv5::Component::isARMv6MSCS()
 {
 	if (cid.ComponentClass == CID::GENERIC_IP)
 		if (pid.isARM())
@@ -144,7 +145,7 @@ bool CMSISDAP::Component::isARMv6MSCS()
 	return false;
 }
 
-bool CMSISDAP::Component::isARMv6MDWT()
+bool ADIv5::Component::isARMv6MDWT()
 {
 	if (cid.ComponentClass == CID::GENERIC_IP)
 		if (pid.isARM())
@@ -153,7 +154,7 @@ bool CMSISDAP::Component::isARMv6MDWT()
 	return false;
 }
 
-bool CMSISDAP::Component::isARMv7MDWT()
+bool ADIv5::Component::isARMv7MDWT()
 {
 	if (cid.ComponentClass == CID::GENERIC_IP)
 		if (pid.isARM())
@@ -162,29 +163,29 @@ bool CMSISDAP::Component::isARMv7MDWT()
 	return false;
 }
 
-bool CMSISDAP::Component::isRomTable()
+bool ADIv5::Component::isRomTable()
 {
 	if (cid.ComponentClass == CID::ROM_TABLE)
 		return true;
 	return false;
 }
 
-int32_t CMSISDAP::Component::read()
+int32_t ADIv5::Component::read()
 {
 	int ret;
 
 	ret = readPid();
-	if (ret != CMSISDAP_OK)
+	if (ret != OK)
 		return ret;
 
 	ret = readCid();
-	if (ret != CMSISDAP_OK)
+	if (ret != OK)
 		return ret;
 
-	return CMSISDAP_OK;
+	return OK;
 }
 
-void CMSISDAP::Component::print()
+void ADIv5::Component::print()
 {
 	_DBGPRT("    PID                 : 0x%016llx\n", pid.raw);
 	_DBGPRT("      Part number       : %x\n", pid.PART);
