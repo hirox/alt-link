@@ -1024,7 +1024,7 @@ int32_t CMSISDAP::initialize(void)
 				csw.Size == 5 ? "256bit" : "UNKNOWN");
 
 			MEM_AP memap(i, ap);
-			Component component(memap, base & 0xFFFFF000);
+			Component component(Memory(memap, base & 0xFFFFF000));
 			ret = component.read();
 			if (ret != CMSISDAP_OK)
 			{
@@ -1462,7 +1462,7 @@ int32_t CMSISDAP::ROM_TABLE::read()
 
 			if (entry.present())
 			{
-				Component child(component.ap, entryAddr);
+				Component child(Memory(component.ap, entryAddr));
 				
 				ret = child.read();
 				if (ret != CMSISDAP_OK)
@@ -1484,7 +1484,7 @@ int32_t CMSISDAP::ROM_TABLE::read()
 
 					if (child.isARMv6MSCS())
 					{
-						ARMv6MSCS scs(child.ap, child.base);
+						ARMv6MSCS scs(child);
 						ARMv6MSCS::CPUID cpuid;
 						if (scs.readCPUID(&cpuid) == CMSISDAP_OK)
 							scs.printCPUID(cpuid);
@@ -1498,6 +1498,15 @@ int32_t CMSISDAP::ROM_TABLE::read()
 						scs.halt();
 						scs.printRegs();
 						scs.run();
+					}
+					else if (child.isARMv6MDWT())
+					{
+						ARMv6MDWT dwt(child);
+						dwt.printPC();
+						dwt.printPC();
+						dwt.printPC();
+						dwt.printPC();
+						dwt.printPC();
 					}
 				}
 				entries.push_back(std::make_pair(entry, child));

@@ -94,6 +94,7 @@
     <ClInclude Include="targetver.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="ARMv6MDWT.cpp" />
     <ClCompile Include="ARMv6MSCS.cpp" />
     <ClCompile Include="Component.cpp" />
     <ClCompile Include="main.cpp" />

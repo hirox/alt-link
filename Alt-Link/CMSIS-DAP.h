@@ -195,19 +195,26 @@ private:
 		uint32_t index;
 	};
 
-	class Component
+	class Memory
 	{
 	public:
-		Component(MEM_AP& _ap, uint32_t _base) : ap(_ap), base(_base) {}
+		Memory(MEM_AP& _ap, uint32_t _base) : ap(_ap), base(_base) {}
+		Memory(Memory& memory) : ap(memory.ap), base(memory.base) {}
+
+		MEM_AP& ap;
+		uint32_t base;
+	};
+
+	class Component : public Memory
+	{
+	public:
+		Component(Memory& memory) : Memory(memory) {}
 
 		int32_t read();
 		void print();
 		bool isRomTable();
 		bool isARMv6MSCS();
-
-	public:
-		MEM_AP& ap;
-		uint32_t base;
+		bool isARMv6MDWT();
 
 	private:
 		union CID
@@ -303,7 +310,7 @@ private:
 		std::vector<std::pair<Entry, Component>> entries;
 	};
 
-	class ARMv6MSCS
+	class ARMv6MSCS : public Memory
 	{
 	public:
 		union CPUID
@@ -360,7 +367,7 @@ private:
 		};
 
 	public:
-		ARMv6MSCS(MEM_AP& _ap, uint32_t _base) : ap(_ap), base(_base) {}
+		ARMv6MSCS(Memory& memory) : Memory(memory) {}
 
 		int32_t readCPUID(CPUID* cpuid);
 		int32_t readDFSR(DFSR* dfsr);
@@ -377,11 +384,17 @@ private:
 		int32_t step(bool maskIntr = false);
 
 	private:
-		MEM_AP& ap;
-		uint32_t base;
-
 		CPUID cpuid;
 
 		int32_t waitForRegReady();
+	};
+
+	class ARMv6MDWT : Memory
+	{
+	public:
+		ARMv6MDWT(Memory& memory) : Memory(memory) {}
+
+		int32_t getPC(uint32_t* pc);
+		void printPC();
 	};
 };
