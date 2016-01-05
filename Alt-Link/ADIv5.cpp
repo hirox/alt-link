@@ -70,12 +70,18 @@ static_assert(CONFIRM_UINT32(DP_SELECT));
 
 union AP_IDR
 {
+	enum ApClass : uint32_t
+	{
+		NoDefined			= 0x0,
+		MemoryAccessPort	= 0x8
+	};
+
 	struct
 	{
 		uint32_t Type		: 4;
 		uint32_t Variant	: 4;
 		uint32_t Reserved	: 5;
-		uint32_t Class		: 4;
+		ApClass Class		: 4;
 		uint32_t IdentityCode		: 7;
 		uint32_t ContinuationCode	: 4;
 		uint32_t Revision	:4;
@@ -280,14 +286,14 @@ int32_t ADIv5::scanAPs()
 		_DBGPRT("    IDR: 0x%08x\n", idr.raw);
 		_DBGPRT("      Designer   : %s\n", idr.ContinuationCode == 0x04 && idr.IdentityCode == 0x3b ? "ARM" : "UNKNOWN");
 		_DBGPRT("      Class/Type : %s\n",
-			idr.Type == 0x00 && idr.Class == 0x00 ? "JTAG-AP" :
-			idr.Type == 0x01 && idr.Class == 0x08 ? "MEM-AP AMBA AHB bus" :
-			idr.Type == 0x02 && idr.Class == 0x08 ? "MEM-AP AMBA APB2 or APB3 bus" :
-			idr.Type == 0x04 && idr.Class == 0x08 ? "MEM-AP AMBA AXI4 ot AXI4 bus" : "UNKNOWN");
+			idr.Type == 0x00 && idr.Class == AP_IDR::NoDefined ? "JTAG-AP" :
+			idr.Type == 0x01 && idr.Class == AP_IDR::MemoryAccessPort ? "MEM-AP AMBA AHB bus" :
+			idr.Type == 0x02 && idr.Class == AP_IDR::MemoryAccessPort ? "MEM-AP AMBA APB2 or APB3 bus" :
+			idr.Type == 0x04 && idr.Class == AP_IDR::MemoryAccessPort ? "MEM-AP AMBA AXI4 ot AXI4 bus" : "UNKNOWN");
 		_DBGPRT("      Variant    : %x\n", idr.Variant);
 		_DBGPRT("      Revision   : %x\n", idr.Revision);
 
-		if (idr.Type != 0x00)
+		if (idr.Class == AP_IDR::MemoryAccessPort)
 		{
 			uint32_t base;
 			ret = ap.read(i, MEM_AP_REG_BASE, &base);
@@ -306,7 +312,7 @@ int32_t ADIv5::scanAPs()
 			_DBGPRT("      Device          : %s\n", csw.DeviceEn ? "enabled" : "disabled");
 			if (csw.DeviceEn)
 				_DBGPRT("      Debug SW Access : %s\n", csw.DbgSwEnable ? "enabled" : "disabled");
-			_DBGPRT("      Secure Access   : %x\n", csw.SPIDEN);
+			_DBGPRT("      Secure Access   : %s\n", csw.SPIDEN ? "enabled" : "disabled");
 			_DBGPRT("      Prot/Type       : %x/%x\n", csw.Prot, csw.Type);
 			_DBGPRT("      Mode            : %s\n",
 				csw.Mode == 0 ? "Basic" :
