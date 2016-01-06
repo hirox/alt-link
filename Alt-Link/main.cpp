@@ -1,13 +1,14 @@
 ﻿
 #include "stdafx.h"
+#include "CMSIS-DAP.h"
 #include "ADIv5.h"
+#include "ADIv5TI.h"
+#include "RemoteSerialProtocol.h"
 
 #include <Poco/Net/ServerSocket.h>
 #include <Poco/Net/TCPServer.h>
 #include <Poco/Net/TCPServerConnection.h>
 #include <Poco/Net/TCPServerConnectionFactory.h>
-
-#include "RemoteSerialProtocol.h"
 
 class TCPConnection : public Poco::Net::TCPServerConnection
 {
@@ -15,7 +16,6 @@ class TCPConnection : public Poco::Net::TCPServerConnection
 	{
 	private:
 		TCPConnection& connection;
-		CMSISDAP dap;
 
 		int32_t send(const std::string& packet)
 		{
@@ -24,13 +24,13 @@ class TCPConnection : public Poco::Net::TCPServerConnection
 		}
 
 	public:
-		RSPtoDAP(TCPConnection& outer)
-			: RemoteSerialProtocol(dap), connection(outer) {}
+		RSPtoDAP(TCPConnection& outer, TargetInterface& ti)
+			: RemoteSerialProtocol(ti), connection(outer) {}
 	} rsp;
 
 public:
-	TCPConnection(const Poco::Net::StreamSocket &socket)
-		: TCPServerConnection(socket), rsp(*this) {}
+	TCPConnection(const Poco::Net::StreamSocket &socket, TargetInterface& ti)
+		: TCPServerConnection(socket), rsp(*this, ti) {}
 
 	void run(void)
 	{
@@ -58,18 +58,19 @@ public:
 
 class ConnectionFactory : public Poco::Net::TCPServerConnectionFactory {
 public:
-	ConnectionFactory() {}
+	ConnectionFactory(TargetInterface& _ti) : ti(_ti) {}
 	virtual ~ConnectionFactory() {}
 
 	virtual Poco::Net::TCPServerConnection* createConnection(const Poco::Net::StreamSocket &socket)
 	{
-		return new TCPConnection(socket);
+		return new TCPConnection(socket, ti);
 	}
+
+	TargetInterface& ti;
 };
 
 int _tmain(int argc, _TCHAR* argv[])
 {
-#if 0
 	CMSISDAP dap;
 	int32_t ret = dap.initialize();
 	if (ret != OK)
@@ -104,20 +105,25 @@ int _tmain(int argc, _TCHAR* argv[])
 	}
 #endif
 
-	adi.powerupDebug();
-	adi.scanAPs();
+	ret = adi.powerupDebug();
+	if (ret != OK)
+		return ret;
+
+	ret = adi.scanAPs();
+	if (ret != OK)
+		return ret;
 
 	ret = dap.cmdLed(CMSISDAP::RUNNING, false);
-	if (ret != OK) {
+	if (ret != OK)
 		return ret;
-	}
-#endif
+
+	ADIv5TI ti(adi);
 
 	static const uint16_t PORT = 1234;
 	Poco::Net::ServerSocket socket(PORT);
 	socket.listen();
 
-	Poco::Net::TCPServer server(new ConnectionFactory(), socket);
+	Poco::Net::TCPServer server(new ConnectionFactory(ti), socket);
 	server.start();
 
 	while (1)

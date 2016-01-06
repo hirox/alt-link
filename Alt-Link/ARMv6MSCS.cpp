@@ -1,6 +1,6 @@
 
 #include "stdafx.h"
-#include "ADIv5.h"
+#include "ARMv6MSCS.h"
 
 #include <thread>
 #include <chrono>
@@ -92,7 +92,7 @@ union DEMCR
 };
 static_assert(CONFIRM_UINT32(DEMCR));
 
-int32_t ADIv5::ARMv6MSCS::readCPUID(CPUID* cpuid)
+int32_t ARMv6MSCS::readCPUID(CPUID* cpuid)
 {
 	int32_t ret;
 
@@ -106,7 +106,7 @@ int32_t ADIv5::ARMv6MSCS::readCPUID(CPUID* cpuid)
 	return OK;
 }
 
-void ADIv5::ARMv6MSCS::CPUID::print()
+void ARMv6MSCS::CPUID::print()
 {
 	_DBGPRT("    CPUID          : 0x%08x\n", raw);
 	_DBGPRT("      Implementer  : %s\n",
@@ -146,7 +146,7 @@ void ADIv5::ARMv6MSCS::CPUID::print()
 	_DBGPRT("      Revision     : r%xp%x\n", Variant, Revision);
 }
 
-int32_t ADIv5::ARMv6MSCS::readDFSR(DFSR* dfsr)
+int32_t ARMv6MSCS::readDFSR(DFSR* dfsr)
 {
 	int32_t ret;
 
@@ -160,7 +160,7 @@ int32_t ADIv5::ARMv6MSCS::readDFSR(DFSR* dfsr)
 	return OK;
 }
 
-void ADIv5::ARMv6MSCS::DFSR::print()
+void ARMv6MSCS::DFSR::print()
 {
 	_DBGPRT("    DFSR           : 0x%08x (%s%s%s%s%s%s)\n", raw,
 		raw == 0 ? "Running" : "",
@@ -171,7 +171,7 @@ void ADIv5::ARMv6MSCS::DFSR::print()
 		HALTED ? "HALTED" : "");
 }
 
-int32_t ADIv5::ARMv6MSCS::waitForRegReady()
+int32_t ARMv6MSCS::waitForRegReady()
 {
 	int ret;
 
@@ -196,7 +196,7 @@ int32_t ADIv5::ARMv6MSCS::waitForRegReady()
 	return OK;
 }
 
-int32_t ADIv5::ARMv6MSCS::readReg(REGSEL reg, uint32_t* data)
+int32_t ARMv6MSCS::readReg(REGSEL reg, uint32_t* data)
 {
 	if (data == nullptr)
 		return CMSISDAP_ERR_INVALID_ARGUMENT;
@@ -220,10 +220,11 @@ int32_t ADIv5::ARMv6MSCS::readReg(REGSEL reg, uint32_t* data)
 	if (ret != OK)
 		return ret;
 
+	_DBGPRT("readReg %d 0x%08x\n", reg, *data);
 	return OK;
 }
 
-int32_t ADIv5::ARMv6MSCS::writeReg(REGSEL reg, uint32_t data)
+int32_t ARMv6MSCS::writeReg(REGSEL reg, uint32_t data)
 {
 	if (reg == 19 || reg > 20)
 		return CMSISDAP_ERR_INVALID_ARGUMENT;
@@ -248,7 +249,7 @@ int32_t ADIv5::ARMv6MSCS::writeReg(REGSEL reg, uint32_t data)
 	return OK;
 }
 
-void ADIv5::ARMv6MSCS::printRegs()
+void ARMv6MSCS::printRegs()
 {
 	uint32_t data[4];
 
@@ -290,7 +291,7 @@ void ADIv5::ARMv6MSCS::printRegs()
 		, data[0], data[1], data[2], data[3]);
 }
 
-void ADIv5::ARMv6MSCS::printDHCSR()
+void ARMv6MSCS::printDHCSR()
 {
 	DHCSR_R d;
 	if (ap.read(REG_DHCSR, &d.raw) != OK)
@@ -305,7 +306,7 @@ void ADIv5::ARMv6MSCS::printDHCSR()
 		, d.S_RETIRE_ST, d.S_RESET_ST);
 }
 
-void ADIv5::ARMv6MSCS::printDEMCR()
+void ARMv6MSCS::printDEMCR()
 {
 	DEMCR d;
 	if (ap.read(REG_DEMCR, &d.raw) != OK)
@@ -317,7 +318,7 @@ void ADIv5::ARMv6MSCS::printDEMCR()
 	_DBGPRT("      ResetVector : %s\n", d.VC_CORERESET ? "trap" : "don't trap");
 }
 
-int32_t ADIv5::ARMv6MSCS::halt(bool maskIntr)
+int32_t ARMv6MSCS::halt(bool maskIntr)
 {
 	int32_t ret;
 	DHCSR_W d;
@@ -333,10 +334,11 @@ int32_t ADIv5::ARMv6MSCS::halt(bool maskIntr)
 	if (ret != OK)
 		return ret;
 
+	_DBGPRT("halt success\n");
 	return OK;
 }
 
-int32_t ADIv5::ARMv6MSCS::run(bool maskIntr)
+int32_t ARMv6MSCS::run(bool maskIntr)
 {
 	int32_t ret;
 	DHCSR_W d;
@@ -362,10 +364,11 @@ int32_t ADIv5::ARMv6MSCS::run(bool maskIntr)
 	if (ret != OK)
 		return ret;
 
+	_DBGPRT("run success\n");
 	return OK;
 }
 
-int32_t ADIv5::ARMv6MSCS::step(bool maskIntr)
+int32_t ARMv6MSCS::step(bool maskIntr)
 {
 	int32_t ret;
 	DHCSR_R r;
@@ -392,5 +395,6 @@ int32_t ADIv5::ARMv6MSCS::step(bool maskIntr)
 	if (ret != OK)
 		return ret;
 
+	_DBGPRT("step success\n");
 	return OK;
 }

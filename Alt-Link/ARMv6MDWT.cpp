@@ -1,6 +1,6 @@
 
 #include "stdafx.h"
-#include "ADIv5.h"
+#include "ARMv6MDWT.h"
 
 #define _DBGPRT printf
 
@@ -60,7 +60,7 @@ union DWT_CTRL_V7M
 };
 static_assert(CONFIRM_UINT32(DWT_CTRL_V7M));
 
-int32_t ADIv5::ARMv6MDWT::getPC(uint32_t* pc)
+int32_t ARMv6MDWT::getPC(uint32_t* pc)
 {
 	if (pc == nullptr)
 		return CMSISDAP_ERR_INVALID_ARGUMENT;
@@ -72,7 +72,7 @@ int32_t ADIv5::ARMv6MDWT::getPC(uint32_t* pc)
 	return OK;
 }
 
-void ADIv5::ARMv6MDWT::printPC()
+void ARMv6MDWT::printPC()
 {
 	uint32_t pc;
 	int ret = getPC(&pc);
@@ -82,7 +82,7 @@ void ADIv5::ARMv6MDWT::printPC()
 	_DBGPRT("    PC : 0x%08x\n", pc);
 }
 
-void ADIv5::ARMv6MDWT::printCtrl()
+void ARMv6MDWT::printCtrl()
 {
 	DWT_CTRL_V6M data;
 	int ret = ap.read(REG_DWT_CTRL, &data.raw);
@@ -93,7 +93,7 @@ void ADIv5::ARMv6MDWT::printCtrl()
 	_DBGPRT("      NUMCOMP: %x\n", data.NUMCOMP);
 }
 
-void ADIv5::ARMv7MDWT::printCtrl()
+void ARMv7MDWT::printCtrl()
 {
 	DWT_CTRL_V7M data;
 	int ret = ap.read(REG_DWT_CTRL, &data.raw);

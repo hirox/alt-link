@@ -84,6 +84,8 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="ADIv5.h" />
+    <ClInclude Include="ARMv6MDWT.h" />
+    <ClInclude Include="ARMv6MSCS.h" />
     <ClInclude Include="assert.h" />
     <ClInclude Include="CMSIS-DAP.h" />
     <ClInclude Include="Converter.h" />
@@ -97,6 +99,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="ADIv5.cpp" />
+    <ClCompile Include="ADIv5TI.cpp" />
     <ClCompile Include="ARMv6MDWT.cpp" />
     <ClCompile Include="ARMv6MSCS.cpp" />
     <ClCompile Include="Component.cpp" />

@@ -103,7 +103,9 @@ union MEM_AP_CSW
 		uint32_t Type			: 4;
 		uint32_t Reserved1		: 7;
 		uint32_t SPIDEN			: 1;
-		uint32_t Prot			: 7;
+		uint32_t Prot			: 5;
+		uint32_t Reserved2		: 1;
+		uint32_t SProt			: 1;
 		uint32_t DbgSwEnable	: 1;
 	};
 	uint32_t raw;
@@ -313,7 +315,7 @@ int32_t ADIv5::scanAPs()
 			if (csw.DeviceEn)
 				_DBGPRT("      Debug SW Access : %s\n", csw.DbgSwEnable ? "enabled" : "disabled");
 			_DBGPRT("      Secure Access   : %s\n", csw.SPIDEN ? "enabled" : "disabled");
-			_DBGPRT("      Prot/Type       : %x/%x\n", csw.Prot, csw.Type);
+			_DBGPRT("      SProt/Prot/Type : %x/%x/%x\n", csw.SProt, csw.Prot, csw.Type);
 			_DBGPRT("      Mode            : %s\n",
 				csw.Mode == 0 ? "Basic" :
 				csw.Mode == 1 ? "Barrier support enabled" : "UNKNOWN");
@@ -330,19 +332,20 @@ int32_t ADIv5::scanAPs()
 				csw.Size == 4 ? "128bit" :
 				csw.Size == 5 ? "256bit" : "UNKNOWN");
 
-			MEM_AP memap(i, ap);
-			Component component(Memory(memap, base & 0xFFFFF000));
-			ret = component.read();
+			std::shared_ptr<MEM_AP> memAp = std::make_shared<MEM_AP>(i, ap);
+			std::shared_ptr<Component> component = std::make_shared<Component>(Memory(*memAp, base & 0xFFFFF000));
+
+			ret = component->read();
 			if (ret != OK)
 			{
 				_ERRPRT("Failed to read ROM Table\n");
 				return ret;
 			}
 
-			if (component.isRomTable())
+			if (component->isRomTable())
 			{
-				ROM_TABLE table(component);
-				table.read();
+				memAps.push_back(std::make_pair(memAp, ROM_TABLE(component)));
+				memAps.back().second.read();
 			}
 			else
 			{
@@ -429,34 +432,34 @@ int32_t ADIv5::MEM_AP::write(uint32_t addr, uint32_t val)
 int32_t ADIv5::ROM_TABLE::read()
 {
 	int ret;
-	uint32_t addr = component.base;
+	uint32_t addr = component->base;
 
-	if (!component.isRomTable())
+	if (!component->isRomTable())
 		return OK;
 
 	_DBGPRT("ROM_TABLE\n");
 	_DBGPRT("  Base    : 0x%08x\n", addr);
 
 	uint32_t data;
-	ret = component.ap.read(addr + 0xFCC, &data);
+	ret = component->ap.read(addr + 0xFCC, &data);
 	if (ret != OK)
 		return ret;
 	sysmem = data ? true : false;
 	_DBGPRT("    MEMTYPE : %s\n", sysmem ? "SYSMEM is present" : "SYSMEM is NOT present");
 
-	component.print();
+	component->print();
 
 	while (1)
 	{
 		Entry entry;
-		ret = component.ap.read(addr, &entry.raw);
+		ret = component->ap.read(addr, &entry.raw);
 		if (ret != OK)
 			return ret;
 
 		if (entry.raw == 0x00)
 			break;
 
-		uint32_t entryAddr = component.base + entry.addr();
+		uint32_t entryAddr = component->base + entry.addr();
 		_DBGPRT("  ENTRY          : 0x%08x (0x%08x)\n", entry.raw, entryAddr);
 		if (entry.FORMAT)
 		{
@@ -466,57 +469,27 @@ int32_t ADIv5::ROM_TABLE::read()
 
 			if (entry.present())
 			{
-				Component child(Memory(component.ap, entryAddr));
+				std::shared_ptr<Component> child = std::make_shared<Component>(Memory(component->ap, entryAddr));
 				
-				ret = child.read();
+				ret = child->read();
 				if (ret != OK)
 				{
 					_DBGPRT("    Failed to read child component\n");
 					continue;
 				}
 
-				if (child.isRomTable())
+				if (child->isRomTable())
 				{
 					_DBGPRT("-> CHILD\n");
-					ROM_TABLE table(child);
-					table.read();
+					children.push_back(std::make_pair(entry, ROM_TABLE(child)));
+					children.back().second.read();
 					_DBGPRT("<-\n");
 				}
 				else
 				{
-					child.print();
-
-					if (child.isARMv6MSCS())
-					{
-						ARMv6MSCS scs(child);
-						ARMv6MSCS::CPUID cpuid;
-						if (scs.readCPUID(&cpuid) == OK)
-							cpuid.print();
-						scs.printDEMCR();
-						ARMv6MSCS::DFSR dfsr;
-						if (scs.readDFSR(&dfsr) == OK)
-							dfsr.print();
-						scs.printDHCSR();
-
-						// Debug state でないとレジスタ値は読めない
-						scs.halt();
-						scs.printRegs();
-						scs.run();
-					}
-					else if (child.isARMv6MDWT())
-					{
-						ARMv6MDWT dwt(child);
-						dwt.printPC();
-						dwt.printCtrl();
-					}
-					else if (child.isARMv7MDWT())
-					{
-						ARMv7MDWT dwt(child);
-						dwt.printPC();
-						dwt.printCtrl();
-					}
+					entries.push_back(std::make_pair(entry, child));
+					child->print();
 				}
-				entries.push_back(std::make_pair(entry, child));
 			}
 		}
 		else
@@ -527,4 +500,64 @@ int32_t ADIv5::ROM_TABLE::read()
 	}
 
 	return OK;
+}
+
+void ADIv5::ROM_TABLE::each(std::function<void(std::shared_ptr<Component>)> func)
+{
+	for (auto c : children)
+	{
+		c.second.each(func);
+	}
+
+	for (auto e : entries)
+	{
+		func(e.second);
+	}
+}
+
+std::vector<std::shared_ptr<ADIv5::Component>> ADIv5::find(std::function<bool(Component&)> func)
+{
+	std::vector<std::shared_ptr<Component>> v;
+
+	for (auto ap : memAps)
+	{
+		ap.second.each([&v, &func](std::shared_ptr<Component> component) {
+			if (func(*component))
+				v.push_back(component);
+		});
+	}
+	return v;
+}
+
+std::vector<std::shared_ptr<ADIv5::Component>> ADIv5::findARMv6MSCS()
+{
+	return find([](Component& component) {
+		return component.isARMv6MSCS() ? true : false;
+	});
+}
+
+std::vector<std::shared_ptr<ADIv5::Component>> ADIv5::findARMv6MDWT()
+{
+	return find([](Component& component) {
+		return component.isARMv6MDWT() ? true : false;
+	});
+}
+
+std::vector<std::shared_ptr<ADIv5::Component>> ADIv5::findARMv7MDWT()
+{
+	return find([](Component& component) {
+		return component.isARMv7MDWT() ? true : false;
+	});
+}
+
+std::vector<std::shared_ptr<ADIv5::MEM_AP>> ADIv5::findSysmem()
+{
+	std::vector<std::shared_ptr<MEM_AP>> v;
+
+	for (auto ap : memAps)
+	{
+		if (ap.second.isSysmem())
+			v.push_back(ap.first);
+	}
+	return v;
 }

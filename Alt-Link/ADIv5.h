@@ -3,6 +3,8 @@
 
 #include <cstdint>
 #include <vector>
+#include <memory>
+#include <functional>
 #include "DAP.h"
 
 class ADIv5
@@ -103,7 +105,6 @@ public:
 	{
 	public:
 		Memory(MEM_AP& _ap, uint32_t _base) : ap(_ap), base(_base) {}
-		Memory(Memory& memory) : ap(memory.ap), base(memory.base) {}
 
 		MEM_AP& ap;
 		uint32_t base;
@@ -112,7 +113,7 @@ public:
 	class Component : public Memory
 	{
 	public:
-		Component(Memory& memory) : Memory(memory) {}
+		Component(const Memory& memory) : Memory(memory) {}
 
 		int32_t read();
 		void print();
@@ -186,9 +187,11 @@ public:
 	class ROM_TABLE
 	{
 	public:
-		ROM_TABLE(Component& _component) : component(_component) {}
+		ROM_TABLE(std::shared_ptr<Component> _component) : component(_component) {}
 
 		int32_t read();
+		void each(std::function<void(std::shared_ptr<Component>)> func);
+		bool isSysmem() { return sysmem; }
 
 	private:
 		union Entry
@@ -209,106 +212,19 @@ public:
 		};
 
 	private:
-		Component& component;
+		std::shared_ptr<Component> component;
 
 		bool sysmem;
-		std::vector<std::pair<Entry, Component>> entries;
+		std::vector<std::pair<Entry, ROM_TABLE>> children;
+		std::vector<std::pair<Entry, std::shared_ptr<Component>>> entries;
 	};
 
-	class ARMv6MSCS : public Memory
-	{
-	public:
-		union CPUID
-		{
-			struct
-			{
-				uint32_t Revision		: 4;
-				uint32_t PartNo			: 12;
-				uint32_t Architecture	: 4;
-				uint32_t Variant		: 4;
-				uint32_t Implementer	: 8;
-			};
-			uint32_t raw;
-			void print();
-		};
-		static_assert(CONFIRM_UINT32(CPUID));
+	std::vector<std::shared_ptr<Component>> find(std::function<bool(Component&)> func);
+	std::vector<std::shared_ptr<Component>> findARMv6MSCS();
+	std::vector<std::shared_ptr<Component>> findARMv6MDWT();
+	std::vector<std::shared_ptr<Component>> findARMv7MDWT();
+	std::vector<std::shared_ptr<MEM_AP>> findSysmem();
 
-		union DFSR
-		{
-			struct
-			{
-				uint32_t HALTED			: 1;
-				uint32_t BKPT			: 1;
-				uint32_t DWTTRAP		: 1;
-				uint32_t VCATCH			: 1;
-				uint32_t EXTERNAL		: 1;
-				uint32_t Reserved		: 27;
-			};
-			uint32_t raw;
-			void print();
-		};
-		static_assert(CONFIRM_UINT32(DFSR));
-
-		enum REGSEL : uint32_t
-		{
-			R0		= 0,
-			R1		= 1,
-			R2		= 2,
-			R3		= 3,
-			R4		= 4,
-			R5		= 5,
-			R6		= 6,
-			R7		= 7,
-			R8		= 8,
-			R9		= 9,
-			R10		= 10,
-			R11		= 11,
-			R12		= 12,
-			SP		= 13,
-			LR		= 14,
-			DebugReturnAddress	= 15,
-			xPSR	= 16,
-			MSP		= 17,
-			PSP		= 18,
-			CONTROL_PRIMASK		= 20
-		};
-
-	public:
-		ARMv6MSCS(Memory& memory) : Memory(memory) {}
-
-		int32_t readCPUID(CPUID* cpuid);
-		int32_t readDFSR(DFSR* dfsr);
-		int32_t readReg(REGSEL reg, uint32_t* data);
-		int32_t writeReg(REGSEL reg, uint32_t data);
-		void printRegs();
-		void printDHCSR();
-		void printDEMCR();
-
-		int32_t halt(bool maskIntr = false);
-		int32_t run(bool maskIntr = false);
-		int32_t step(bool maskIntr = false);
-
-	private:
-		CPUID cpuid;
-
-		int32_t waitForRegReady();
-	};
-
-	class ARMv6MDWT : public Memory
-	{
-	public:
-		ARMv6MDWT(Memory& memory) : Memory(memory) {}
-
-		int32_t getPC(uint32_t* pc);
-		void printPC();
-		void printCtrl();
-	};
-
-	class ARMv7MDWT : public ARMv6MDWT
-	{
-	public:
-		ARMv7MDWT(Memory& memory) : ARMv6MDWT(memory) {}
-
-		void printCtrl();
-	};
+private:
+	std::vector<std::pair<std::shared_ptr<MEM_AP>, ROM_TABLE>> memAps;
 };

@@ -107,15 +107,15 @@ void RemoteSerialProtocol::processBreakWatchPoint(const std::string& payload)
 	case '0':
 	case '1':
 	{
-		CMSISDAP::BreakPointType type;
+		TargetInterface::BreakPointType type;
 
 		if (payload[1] == '0')
 		{
-			type = CMSISDAP::MEMORY;
+			type = TargetInterface::MEMORY;
 		}
 		else
 		{
-			type = CMSISDAP::HARDWARE;
+			type = TargetInterface::HARDWARE;
 		}
 
 		if (payload[0] == 'Z')
@@ -132,19 +132,19 @@ void RemoteSerialProtocol::processBreakWatchPoint(const std::string& payload)
 	case '3':
 	case '4':
 	{
-		CMSISDAP::WatchPointType type;
+		TargetInterface::WatchPointType type;
 
 		if (payload[1] == '2')
 		{
-			type = CMSISDAP::WRITE;
+			type = TargetInterface::WRITE;
 		}
 		else if (payload[1] == '3')
 		{
-			type = CMSISDAP::READ;
+			type = TargetInterface::READ;
 		}
 		else
 		{
-			type = CMSISDAP::ACCESS;
+			type = TargetInterface::ACCESS;
 		}
 
 		if (payload[0] == 'Z')

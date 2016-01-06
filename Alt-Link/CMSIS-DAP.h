@@ -12,43 +12,13 @@
 #endif
 #endif
 #include <hidapi.h>
+#include <string>
 
-#include "TargetInterface.h"
 #include "DAP.h"
 
-class CMSISDAP : public TargetInterface, public DAP
+class CMSISDAP : public DAP
 {
 public:
-	virtual int32_t attach();
-	virtual void detach();
-
-	virtual void setTargetThreadId();
-	virtual void setCurrentPC(const uint64_t addr);
-
-	virtual void resume();
-	virtual int32_t step(uint8_t* signal);
-	virtual int32_t interrupt(uint8_t* signal);
-
-	virtual int32_t setBreakPoint(BreakPointType type, uint64_t addr, uint32_t kind);
-	virtual int32_t unsetBreakPoint(BreakPointType type, uint64_t addr, uint32_t kind);
-
-	virtual int32_t setWatchPoint(WatchPointType type, uint64_t addr, uint32_t kind);
-	virtual int32_t unsetWatchPoint(WatchPointType type, uint64_t addr, uint32_t kind);
-
-	virtual int32_t readRegister(const uint32_t n, uint32_t* out);
-	virtual int32_t readRegister(const uint32_t n, uint64_t* out);
-	virtual int32_t readRegister(const uint32_t n, uint64_t* out1, uint64_t* out2);	// 128-bit
-	virtual int32_t writeRegister(const uint32_t n, const uint32_t data);
-	virtual int32_t writeRegister(const uint32_t n, const uint64_t data);
-	virtual int32_t writeRegister(const uint32_t n, const uint64_t data1, const uint64_t data2); // 128-bit
-	virtual int32_t readGenericRegisters(std::vector<uint32_t>* array);
-	virtual int32_t writeGenericRegisters(const std::vector<uint32_t>& array);
-
-	virtual void readMemory(uint64_t addr, uint32_t len, std::vector<uint8_t>* array);
-	virtual uint8_t writeMemory(uint64_t addr, uint32_t len, const std::vector<uint8_t>& array);
-
-	virtual int32_t monitor(const std::string command, std::string* output);
-
 	int32_t initialize(void);
 	int32_t finalize(void);
 	int32_t resetSw(void);

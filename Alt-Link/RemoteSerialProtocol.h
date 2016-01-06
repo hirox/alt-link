@@ -2,7 +2,7 @@
 #pragma once
 
 #include "PacketTransfer.h"
-#include "CMSIS-DAP.h"
+#include "TargetInterface.h"
 
 #include <map>
 
