@@ -101,7 +101,11 @@ int32_t ADIv5TI::interrupt(uint8_t* signal)
 	ASSERT_RELEASE(signal != nullptr);
 
 	*signal = 0x05;	// SIGTRAP
-	return 0;
+
+	if (scs)
+		return scs->halt();
+
+	return CMSISDAP_ERR_TARGET_NOT_FOUND;
 }
 
 int32_t ADIv5TI::setBreakPoint(BreakPointType type, uint64_t addr, uint32_t kind)
