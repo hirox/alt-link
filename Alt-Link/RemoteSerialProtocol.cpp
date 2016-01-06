@@ -20,7 +20,7 @@ void RemoteSerialProtocol::processQuery(const std::string& payload)
 	if (payload.find("qSupported:") == 0)
 	{
 		// [TODO] fix it
-		auto packet = makePacket("PacketSize=3fff;Qbtrace:off-;Qbtrace:bts-");
+		auto packet = makePacket("PacketSize=3fff;Qbtrace:off-;Qbtrace:bts-;qXfer:features:read+;");
 		sendPacket(packet);
 	}
 	else if (payload.find("qTStatus") == 0)
@@ -70,6 +70,17 @@ void RemoteSerialProtocol::processQuery(const std::string& payload)
 		{
 			sendError(result);
 		}
+	}
+	else if (payload.find("qXfer:features:read:target.xml:0,") == 0)
+	{
+		// [TODO] fix offset, length
+		uint32_t offset = 0x0;
+		uint32_t length = 0xFFF;
+		auto xml = targetInterface.targetXml(offset, length);
+		if (xml.size() < length)
+			sendPacket(makePacket("l" + xml));
+		else
+			sendPacket(makePacket("m" + xml));
 	}
 	else if (payload.find("qXfer") == 0)
 	{

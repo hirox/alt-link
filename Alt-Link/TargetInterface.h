@@ -47,4 +47,6 @@ public:
 	virtual uint8_t writeMemory(uint64_t addr, uint32_t len, const std::vector<uint8_t>& array) = 0;
 
 	virtual int32_t monitor(const std::string command, std::string* output) = 0;
+
+	virtual std::string targetXml(uint32_t offset, uint32_t length) = 0;
 };

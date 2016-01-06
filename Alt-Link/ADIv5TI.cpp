@@ -132,16 +132,46 @@ int32_t ADIv5TI::readRegister(const uint32_t n, uint32_t* out)
 {
 	ASSERT_RELEASE(out != nullptr);
 
+	if (!scs)
+		return CMSISDAP_ERR_TARGET_NOT_FOUND;
+
 	ARMv6MSCS::REGSEL regsel = (ARMv6MSCS::REGSEL)n;
+	int32_t ret;
 
-	// cpsr
-	if (n == 0x19)
-		regsel = ARMv6MSCS::REGSEL::xPSR;
+	if (n == 19)	// PRIMASK
+	{
+		regsel = ARMv6MSCS::REGSEL::CONTROL_PRIMASK;
+		ret = scs->readReg(regsel, out);
+		if (ret == OK)
+			*out = *out & 0xFF;
+		return ret;
+	}
+	else if (n == 20)	// BASEPRI
+	{
+		regsel = ARMv6MSCS::REGSEL::CONTROL_PRIMASK;
+		ret = scs->readReg(regsel, out);
+		if (ret == OK)
+			*out = (*out >> 8) & 0xFF;
+		return ret;
+	}
+	else if (n == 21)	// FAULTMASK
+	{
+		regsel = ARMv6MSCS::REGSEL::CONTROL_PRIMASK;
+		ret = scs->readReg(regsel, out);
+		if (ret == OK)
+			*out = (*out >> 16) & 0xFF;
+		return ret;
+	}
+	else if (n == 22)	// CONTROL
+	{
+		regsel = ARMv6MSCS::REGSEL::CONTROL_PRIMASK;
+		ret = scs->readReg(regsel, out);
+		if (ret == OK)
+			*out = (*out >> 24) & 0xFF;
+		return ret;
+	}
 
-	if (scs)
-		return scs->readReg(regsel, out);
-
-	return CMSISDAP_ERR_TARGET_NOT_FOUND;
+	return scs->readReg(regsel, out);
 }
 
 int32_t ADIv5TI::readRegister(const uint32_t n, uint64_t* out)
@@ -274,4 +304,53 @@ int32_t ADIv5TI::monitor(const std::string command, std::string* output)
 	(void)command;
 	(void)output;
 	return 0;
+}
+
+std::string ADIv5TI::targetXml(uint32_t offset, uint32_t length)
+{
+	std::string out = createTargetXml();
+	return std::string(out, offset, out.size() <= offset + length ? out.size() - offset : length);
+}
+
+std::string ADIv5TI::createTargetXml()
+{
+	std::string out = R"(<?xml version="1.0"?><!DOCTYPE target SYSTEM "gdb-target.dtd">)";
+	out.append(R"(<target version="1.0">)");
+	{
+		out.append(R"(<feature name="org.gnu.gdb.arm.m-profile">)");
+		{
+			out.append(R"(<reg name="r0" bitsize="32" regnum="0" type="int" group="general"/>)");
+			out.append(R"(<reg name="r1" bitsize="32" regnum="1" type="int" group="general"/>)");
+			out.append(R"(<reg name="r2" bitsize="32" regnum="2" type="int" group="general"/>)");
+			out.append(R"(<reg name="r3" bitsize="32" regnum="3" type="int" group="general"/>)");
+
+			out.append(R"(<reg name="r4" bitsize="32" regnum="4" type="int" group="general"/>)");
+			out.append(R"(<reg name="r5" bitsize="32" regnum="5" type="int" group="general"/>)");
+			out.append(R"(<reg name="r6" bitsize="32" regnum="6" type="int" group="general"/>)");
+			out.append(R"(<reg name="r7" bitsize="32" regnum="7" type="int" group="general"/>)");
+			out.append(R"(<reg name="r8" bitsize="32" regnum="8" type="int" group="general"/>)");
+			out.append(R"(<reg name="r9" bitsize="32" regnum="9" type="int" group="general"/>)");
+			out.append(R"(<reg name="r10" bitsize="32" regnum="10" type="int" group="general"/>)");
+			out.append(R"(<reg name="r11" bitsize="32" regnum="11" type="int" group="general"/>)");
+			out.append(R"(<reg name="r12" bitsize="32" regnum="12" type="int" group="general"/>)");
+			out.append(R"(<reg name="sp" bitsize="32" regnum="13" type="data_ptr" group="general"/>)");
+			out.append(R"(<reg name="lr" bitsize="32" regnum="14" type="int" group="general"/>)");
+			out.append(R"(<reg name="pc" bitsize="32" regnum="15" type="code_ptr" group="general"/>)");
+			out.append(R"(<reg name="xPSR" bitsize="32" regnum="16" type="int" group="general"/>)");
+		}
+		out.append(R"(</feature>)");
+
+		out.append(R"(<feature name="org.gnu.gdb.arm.m-system">)");
+		{
+			out.append(R"(<reg name="msp" bitsize="32" regnum="17" type="data_ptr" group="system"/>)");
+			out.append(R"(<reg name="psp" bitsize="32" regnum="18" type="data_ptr" group="system"/>)");
+			out.append(R"(<reg name="primask" bitsize="1" regnum="19" type="int8" group="system"/>)");
+			out.append(R"(<reg name="basepri" bitsize="8" regnum="20" type="int8" group="system"/>)");
+			out.append(R"(<reg name="faultmask" bitsize="1" regnum="21" type="int8" group="system"/>)");
+			out.append(R"(<reg name="control" bitsize="3" regnum="22" type="int8" group="system"/>)");
+		}
+		out.append(R"(</feature>)");
+	}
+	out.append(R"(</target>)");
+	return out;
 }
