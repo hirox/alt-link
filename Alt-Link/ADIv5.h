@@ -54,7 +54,7 @@ public:
 	static_assert(CONFIRM_UINT32(DP_CTRL_STAT));
 
 public:
-	ADIv5(DAP& dap) : dp(dap), ap(dap, dp) {}
+	ADIv5(DAP& _dap) : dap(_dap), ap(_dap) {}
 
 	int32_t getIDCODE(DP_IDCODE* idcode);
 	int32_t getCtrlStat(DP_CTRL_STAT* ctrlStat);
@@ -62,27 +62,15 @@ public:
 	int32_t powerupDebug();
 	int32_t scanAPs();
 
-	class DP
-	{
-	public:
-		DP(DAP& _dap) : dap(_dap) {}
-		int32_t read(uint32_t reg, uint32_t *data);
-		int32_t write(uint32_t reg, uint32_t val);
-
-	private:
-		DAP& dap;
-	} dp;
-
 	class AP
 	{
 	public:
-		AP(DAP& _dap, DP& _dp) : dap(_dap), dp(_dp) {}
+		AP(DAP& _dap) : dap(_dap) {}
 		int32_t read(uint32_t ap, uint32_t reg, uint32_t *data);
 		int32_t write(uint32_t ap, uint32_t reg, uint32_t val);
 
 	private:
 		DAP& dap;
-		DP& dp;
 		uint32_t lastAp = 0;
 		uint32_t lastApBank = 0;
 
@@ -230,4 +218,5 @@ public:
 
 private:
 	std::vector<std::pair<std::shared_ptr<MEM_AP>, ROM_TABLE>> memAps;
+	DAP& dap;
 };

@@ -159,22 +159,12 @@ static_assert(CONFIRM_UINT32(MEM_AP_CFG));
 #define CSW_SPROT (1UL << 30)
 #define CSW_DBGSWENABLE (1UL << 31)
 
-int32_t ADIv5::DP::read(uint32_t reg, uint32_t *data)
-{
-	return dap.dpRead(reg, data);
-}
-
-int32_t ADIv5::DP::write(uint32_t reg, uint32_t data)
-{
-	return dap.dpWrite(reg, data);
-}
-
 int32_t ADIv5::getIDCODE(DP_IDCODE* idcode)
 {
 	if (idcode == nullptr)
 		return CMSISDAP_ERR_INVALID_ARGUMENT;
 
-	return dp.read(DP_REG_IDCODE, &idcode->raw);
+	return dap.dpRead(DP_REG_IDCODE, &idcode->raw);
 }
 
 void ADIv5::DP_IDCODE::print()
@@ -210,12 +200,12 @@ int32_t ADIv5::getCtrlStat(DP_CTRL_STAT* ctrlStat)
 	if (ctrlStat == nullptr)
 		return CMSISDAP_ERR_INVALID_ARGUMENT;
 
-	return dp.read(DP_REG_CTRL_STAT, &ctrlStat->raw);
+	return dap.dpRead(DP_REG_CTRL_STAT, &ctrlStat->raw);
 }
 
 int32_t ADIv5::setCtrlStat(DP_CTRL_STAT& ctrlStat)
 {
-	return dp.write(DP_REG_CTRL_STAT, ctrlStat.raw);
+	return dap.dpWrite(DP_REG_CTRL_STAT, ctrlStat.raw);
 }
 
 void ADIv5::DP_CTRL_STAT::print()
@@ -370,7 +360,7 @@ int32_t ADIv5::AP::select(uint32_t ap, uint32_t reg)
 		select.APBANKSEL = bank >> 4;
 		select.DPBANKSEL = 0;
 
-		int ret = dp.write(DP_REG_SELECT, select.raw);
+		int ret = dap.dpWrite(DP_REG_SELECT, select.raw);
 		if (ret != OK) {
 			return ret;
 		}
