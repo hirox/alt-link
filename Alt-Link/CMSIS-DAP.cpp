@@ -684,7 +684,7 @@ int32_t CMSISDAP::initialize(void)
 		return ret;
 	}
 
-	ret = cmdSwjClock(100 * 1000); /* 100kHz */
+	ret = cmdSwjClock(1000 * 1000); /* 1000kHz */
 	if (ret != OK) {
 		return ret;
 	}

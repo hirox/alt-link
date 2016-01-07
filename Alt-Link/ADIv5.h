@@ -99,6 +99,9 @@ public:
 	private:
 		AP& ap;
 		uint32_t index;
+		uint32_t lastTAR = 0;
+
+		bool isSameTAR(uint32_t addr, uint32_t* reg);
 	};
 
 	class Memory

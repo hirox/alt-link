@@ -131,10 +131,10 @@ static_assert(CONFIRM_UINT32(MEM_AP_CFG));
 #define MEM_AP_REG_TAR		0x04
 #define MEM_AP_REG_TAR2		0x08	// for 64bit
 #define MEM_AP_REG_DRW		0x0C
-#define AP_REG_BD0 0x10
-#define AP_REG_BD1 0x14
-#define AP_REG_BD2 0x18
-#define AP_REG_BD3 0x1C
+#define MEM_AP_REG_BD0 0x10
+#define MEM_AP_REG_BD1 0x14
+#define MEM_AP_REG_BD2 0x18
+#define MEM_AP_REG_BD3 0x1C
 #define MEM_AP_REG_CFG		0xF4
 #define MEM_AP_REG_BASE2	0xF0	// for 64bit
 #define MEM_AP_REG_BASE		0xF8
@@ -399,33 +399,74 @@ int32_t ADIv5::AP::write(uint32_t ap, uint32_t reg, uint32_t data)
 	return dap.apWrite(reg, data);
 }
 
+bool ADIv5::MEM_AP::isSameTAR(uint32_t addr, uint32_t* reg)
+{
+	if (reg == nullptr)
+		return false;
+
+	if ((lastTAR & 0xFFFFFFF0) == (addr & 0xFFFFFFF0))
+	{
+		if ((addr & 0xF) == 0x0)
+			*reg = MEM_AP_REG_BD0;
+		else if ((addr & 0xF) == 0x4)
+			*reg = MEM_AP_REG_BD1;
+		else if ((addr & 0xF) == 0x8)
+			*reg = MEM_AP_REG_BD2;
+		else if ((addr & 0xF) == 0xC)
+			*reg = MEM_AP_REG_BD3;
+		return true;
+	}
+	return false;
+}
+
 int32_t ADIv5::MEM_AP::read(uint32_t addr, uint32_t *data)
 {
-	int ret = ap.write(index, MEM_AP_REG_TAR, addr);
-	if (ret != OK) {
-		return ret;
+	uint32_t reg;
+	if (isSameTAR(addr, &reg))
+	{
+		int ret = ap.read(index, reg, data);
+		if (ret != OK) {
+			return ret;
+		}
 	}
+	else
+	{
+		int ret = ap.write(index, MEM_AP_REG_TAR, addr);
+		if (ret != OK) {
+			return ret;
+		}
+		lastTAR = addr;
 
-	ret = ap.read(index, MEM_AP_REG_DRW, data);
-	if (ret != OK) {
-		return ret;
+		ret = ap.read(index, MEM_AP_REG_DRW, data);
+		if (ret != OK) {
+			return ret;
+		}
 	}
-
 	return OK;
 }
 
 int32_t ADIv5::MEM_AP::write(uint32_t addr, uint32_t val)
 {
-	int ret = ap.write(index, MEM_AP_REG_TAR, addr);
-	if (ret != OK) {
-		return ret;
+	uint32_t reg;
+	if (isSameTAR(addr, &reg))
+	{
+		int ret = ap.write(index, reg, val);
+		if (ret != OK) {
+			return ret;
+		}
 	}
+	else
+	{
+		int ret = ap.write(index, MEM_AP_REG_TAR, addr);
+		if (ret != OK) {
+			return ret;
+		}
 
-	ret = ap.write(index, MEM_AP_REG_DRW, val);
-	if (ret != OK) {
-		return ret;
+		ret = ap.write(index, MEM_AP_REG_DRW, val);
+		if (ret != OK) {
+			return ret;
+		}
 	}
-
 	return OK;
 }
 
