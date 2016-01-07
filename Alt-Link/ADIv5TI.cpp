@@ -55,7 +55,7 @@ int32_t ADIv5TI::attach()
 	if (scs)
 		return scs->halt();
 
-	return CMSISDAP_ERR_TARGET_NOT_FOUND;
+	return ENODEV;
 }
 
 void ADIv5TI::detach()
@@ -93,7 +93,7 @@ int32_t ADIv5TI::step(uint8_t* signal)
 	if (scs)
 		return scs->step();
 
-	return CMSISDAP_ERR_TARGET_NOT_FOUND;
+	return ENODEV;
 }
 
 int32_t ADIv5TI::interrupt(uint8_t* signal)
@@ -105,7 +105,7 @@ int32_t ADIv5TI::interrupt(uint8_t* signal)
 	if (scs)
 		return scs->halt();
 
-	return CMSISDAP_ERR_TARGET_NOT_FOUND;
+	return ENODEV;
 }
 
 int32_t ADIv5TI::setBreakPoint(BreakPointType type, uint64_t addr, uint32_t kind)
@@ -128,12 +128,12 @@ int32_t ADIv5TI::unsetWatchPoint(WatchPointType type, uint64_t addr, uint32_t ki
 	return -1;	// not supported
 }
 
-int32_t ADIv5TI::readRegister(const uint32_t n, uint32_t* out)
+errno_t ADIv5TI::readRegister(const uint32_t n, uint32_t* out)
 {
 	ASSERT_RELEASE(out != nullptr);
 
 	if (!scs)
-		return CMSISDAP_ERR_TARGET_NOT_FOUND;
+		return ENODEV;
 
 	ARMv6MSCS::REGSEL regsel = (ARMv6MSCS::REGSEL)n;
 	int32_t ret;
@@ -174,7 +174,7 @@ int32_t ADIv5TI::readRegister(const uint32_t n, uint32_t* out)
 	return scs->readReg(regsel, out);
 }
 
-int32_t ADIv5TI::readRegister(const uint32_t n, uint64_t* out)
+errno_t ADIv5TI::readRegister(const uint32_t n, uint64_t* out)
 {
 	ASSERT_RELEASE(out != nullptr);
 	uint32_t value;
@@ -186,7 +186,7 @@ int32_t ADIv5TI::readRegister(const uint32_t n, uint64_t* out)
 	return result;
 }
 
-int32_t ADIv5TI::readRegister(const uint32_t n, uint64_t* out1, uint64_t* out2)
+errno_t ADIv5TI::readRegister(const uint32_t n, uint64_t* out1, uint64_t* out2)
 {
 	ASSERT_RELEASE(out1 != nullptr && out2 != nullptr);
 	uint32_t value;
@@ -199,7 +199,7 @@ int32_t ADIv5TI::readRegister(const uint32_t n, uint64_t* out1, uint64_t* out2)
 	return result;
 }
 
-int32_t ADIv5TI::writeRegister(const uint32_t n, const uint32_t data)
+errno_t ADIv5TI::writeRegister(const uint32_t n, const uint32_t data)
 {
 	// TODO
 	(void)n;
@@ -207,14 +207,14 @@ int32_t ADIv5TI::writeRegister(const uint32_t n, const uint32_t data)
 	return 0;
 }
 
-int32_t ADIv5TI::writeRegister(const uint32_t n, const uint64_t data)
+errno_t ADIv5TI::writeRegister(const uint32_t n, const uint64_t data)
 {
 	(void)n;
 	(void)data;
 	return 0;
 }
 
-int32_t ADIv5TI::writeRegister(const uint32_t n, const uint64_t data1, const uint64_t data2)
+errno_t ADIv5TI::writeRegister(const uint32_t n, const uint64_t data1, const uint64_t data2)
 {
 	(void)n;
 	(void)data1;
@@ -222,7 +222,7 @@ int32_t ADIv5TI::writeRegister(const uint32_t n, const uint64_t data1, const uin
 	return 0;
 }
 
-int32_t ADIv5TI::readGenericRegisters(std::vector<uint32_t>* array)
+errno_t ADIv5TI::readGenericRegisters(std::vector<uint32_t>* array)
 {
 	ASSERT_RELEASE(array != nullptr);
 
@@ -238,63 +238,68 @@ int32_t ADIv5TI::readGenericRegisters(std::vector<uint32_t>* array)
 			return -1;
 		}
 	}
-	return 0;
+	return OK;
 }
 
-int32_t ADIv5TI::writeGenericRegisters(const std::vector<uint32_t>& array)
+errno_t ADIv5TI::writeGenericRegisters(const std::vector<uint32_t>& array)
 {
 	// TODO
 	(void)array;
-	return 0;
+	return OK;
 }
 
-void ADIv5TI::readMemory(uint64_t addr, uint32_t len, std::vector<uint8_t>* array)
+errno_t ADIv5TI::readMemory(uint64_t addr, uint32_t len, std::vector<uint8_t>* array)
 {
 	ASSERT_RELEASE(array != nullptr);
 
-	if (mem)
-	{
-		int32_t ret;
-		uint32_t i = 0;
-		for (; i < len / 4; i++)
-		{
-			uint32_t data;
-			ret = mem->read((uint32_t)addr, &data);
-			if (ret != OK)
-				return;
-			_DBGPRT("readMemory 0x%08x 0x%08x\n", (uint32_t)addr, data);
-			array->push_back(data & 0xFF);
-			array->push_back((data >> 8) & 0xFF);
-			array->push_back((data >> 16) & 0xFF);
-			array->push_back((data >> 24) & 0xFF);
-			addr += 4;
-		}
+	if (!mem)
+		return ENODEV;
 
-		len -= i * 4;
-		if (len > 0)
-		{
-			uint32_t data;
-			ret = mem->read((uint32_t)addr, &data);
-			if (ret != OK)
-				return;
-			if (len > 0) { array->push_back((data >> 0) & 0xFF); len--; }
-			if (len > 0) { array->push_back((data >> 8) & 0xFF); len--; }
-			if (len > 0) { array->push_back((data >> 16) & 0xFF); len--; }
-			if (len > 0) { array->push_back((data >> 24) & 0xFF); len--; }
-		}
+	int32_t ret;
+	uint32_t i = 0;
+	for (; i < len / 4; i++)
+	{
+		uint32_t data;
+		ret = mem->read((uint32_t)addr, &data);
+		if (ret != OK)
+			return ret;
+		_DBGPRT("readMemory 0x%08x 0x%08x\n", (uint32_t)addr, data);
+		array->push_back(data & 0xFF);
+		array->push_back((data >> 8) & 0xFF);
+		array->push_back((data >> 16) & 0xFF);
+		array->push_back((data >> 24) & 0xFF);
+		addr += 4;
 	}
+
+	len -= i * 4;
+	if (len > 0)
+	{
+		uint32_t data;
+		ret = mem->read((uint32_t)addr, &data);
+		if (ret != OK)
+			return ret;
+		if (len > 0) { array->push_back((data >> 0) & 0xFF); len--; }
+		if (len > 0) { array->push_back((data >> 8) & 0xFF); len--; }
+		if (len > 0) { array->push_back((data >> 16) & 0xFF); len--; }
+		if (len > 0) { array->push_back((data >> 24) & 0xFF); len--; }
+	}
+	return OK;
 }
 
-uint8_t ADIv5TI::writeMemory(uint64_t addr, uint32_t len, const std::vector<uint8_t>& array)
+errno_t ADIv5TI::writeMemory(uint64_t addr, uint32_t len, const std::vector<uint8_t>& array)
 {
 	// TODO
 	(void)addr;
 	(void)len;
 	(void)array;
+
+	if (!mem)
+		return ENODEV;
+
 	return 0;
 }
 
-int32_t ADIv5TI::monitor(const std::string command, std::string* output)
+errno_t ADIv5TI::monitor(const std::string command, std::string* output)
 {
 	ASSERT_RELEASE(output != nullptr);
 

@@ -54,7 +54,7 @@ void RemoteSerialProtocol::processQuery(const std::string& payload)
 		std::string command(array.begin(), array.end());
 
 		std::string output;
-		int32_t result = targetInterface.monitor(command, &output);
+		errno_t result = targetInterface.monitor(command, &output);
 		if (result == OK)
 		{
 			if (output.size() == 0)
@@ -281,14 +281,7 @@ void RemoteSerialProtocol::packetReceived(const std::string& payload)
 	case 'G':	// write general registers
 	{
 		std::vector<uint32_t> array = Converter::toUInt32Array(payload.substr(1));
-		if (targetInterface.writeGenericRegisters(array) == OK)
-		{
-			sendOK();
-		}
-		else
-		{
-			sendError();
-		}
+		sendOKorError(targetInterface.writeGenericRegisters(array));
 		break;
 	}
 	case 'p':	// read specific register
@@ -313,14 +306,7 @@ void RemoteSerialProtocol::packetReceived(const std::string& payload)
 		auto delimiter = Converter::extract(payload, 1, '=', false, &n);
 		uint32_t value = std::stoi(payload.substr(delimiter + 1), nullptr, 16);
 
-		if (targetInterface.writeRegister(n, value) == OK)
-		{
-			sendOK();
-		}
-		else
-		{
-			sendError();
-		}
+		sendOKorError(targetInterface.writeRegister(n, value));
 		break;
 	}
 	case 'm':	// read memory
@@ -329,14 +315,18 @@ void RemoteSerialProtocol::packetReceived(const std::string& payload)
 		auto delimiter = Converter::extract(payload, 1, ',', false, &addr);
 		uint32_t len = std::stoi(payload.substr(delimiter + 1), nullptr, 16);
 
-		if (delimiter != payload.npos)
+		if (delimiter == payload.npos)
 		{
-			std::vector<uint8_t> array;
-			targetInterface.readMemory(addr, len, &array);
-			sendPacket(makePacket(Converter::toHex(array)));
+			sendError();
 			break;
 		}
-		sendError();
+
+		std::vector<uint8_t> array;
+		auto ret = targetInterface.readMemory(addr, len, &array);
+		if (ret == OK)
+			sendPacket(makePacket(Converter::toHex(array)));
+		else
+			sendError(ret);
 		break;
 	}
 	case 'M':		// write memory
@@ -388,26 +378,26 @@ int32_t RemoteSerialProtocol::sendNack()
 
 int32_t RemoteSerialProtocol::sendOK()
 {
-	return sendOKorError(0x00);
+	return sendOKorError(OK);
 }
 
-int32_t RemoteSerialProtocol::sendError(uint8_t error)
+int32_t RemoteSerialProtocol::sendError(errno_t error)
 {
-	ASSERT_RELEASE(error != 0x00);
+	ASSERT_RELEASE(error != OK);
 	return sendOKorError(error);
 }
 
-int32_t RemoteSerialProtocol::sendOKorError(uint8_t error)
+int32_t RemoteSerialProtocol::sendOKorError(errno_t error)
 {
 	PacketTransfer::Packet packet;
 
-	if (error == 0)
+	if (error == OK)
 	{
 		packet = makePacket("OK");
 	}
 	else
 	{
-		packet = makePacket("E" + Converter::toHex(error));
+		packet = makePacket("E" + Converter::toHex((uint32_t)error));
 	}
 	return sendPacket(packet);
 }

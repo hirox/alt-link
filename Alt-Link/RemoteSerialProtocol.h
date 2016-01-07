@@ -24,8 +24,8 @@ private:
 	int32_t sendAck();
 	int32_t sendNack();
 	int32_t sendOK();
-	int32_t sendError(uint8_t error = 0x01);
-	int32_t sendOKorError(uint8_t error);
+	int32_t sendError(errno_t error = EPERM);
+	int32_t sendOKorError(errno_t error);
 	int32_t sendNotSupported();
 	int32_t resend();
 	int32_t sendPacket(const PacketTransfer::Packet& packet);
