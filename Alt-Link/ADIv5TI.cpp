@@ -9,7 +9,7 @@ ADIv5TI::ADIv5TI(ADIv5 _adi) : adi(_adi)
 	{
 		scs = std::make_shared<ARMv6MSCS>(*_scs[0]);
 
-		_DBGPRT("ARMv6-M SCS\n");
+		_DBGPRT("ARMv6-M/v7-M SCS\n");
 		ARMv6MSCS::CPUID cpuid;
 		if (scs->readCPUID(&cpuid) == OK)
 			cpuid.print();
@@ -38,7 +38,7 @@ ADIv5TI::ADIv5TI(ADIv5 _adi) : adi(_adi)
 	if (_v7dwt.size() > 0)
 	{
 		dwt = std::make_shared<ARMv7MDWT>(*_v7dwt[0]);
-		_DBGPRT("ARMv6-M DWT\n");
+		_DBGPRT("ARMv7-M DWT\n");
 		dwt->printPC();
 		dwt->printCtrl();
 	}
@@ -138,39 +138,22 @@ errno_t ADIv5TI::readRegister(const uint32_t n, uint32_t* out)
 	ARMv6MSCS::REGSEL regsel = (ARMv6MSCS::REGSEL)n;
 	int32_t ret;
 
-	if (n == 19)	// PRIMASK
+	if (n == 19 || n == 20 || n == 21 || n == 22)
 	{
-		regsel = ARMv6MSCS::REGSEL::CONTROL_PRIMASK;
-		ret = scs->readReg(regsel, out);
+		ret = scs->readReg(ARMv6MSCS::REGSEL::CONTROL_PRIMASK, out);
 		if (ret == OK)
-			*out = *out & 0xFF;
+		{
+			if (n == 19)		// PRIMASK
+				*out = *out & 0xFF;
+			else if (n == 20)	// BASEPRI
+				*out = (*out >> 8) & 0xFF;
+			else if (n == 21)	// FAULTMASK
+				*out = (*out >> 16) & 0xFF;
+			else if (n == 22)	// CONTROL
+				*out = (*out >> 24) & 0xFF;
+		}
 		return ret;
 	}
-	else if (n == 20)	// BASEPRI
-	{
-		regsel = ARMv6MSCS::REGSEL::CONTROL_PRIMASK;
-		ret = scs->readReg(regsel, out);
-		if (ret == OK)
-			*out = (*out >> 8) & 0xFF;
-		return ret;
-	}
-	else if (n == 21)	// FAULTMASK
-	{
-		regsel = ARMv6MSCS::REGSEL::CONTROL_PRIMASK;
-		ret = scs->readReg(regsel, out);
-		if (ret == OK)
-			*out = (*out >> 16) & 0xFF;
-		return ret;
-	}
-	else if (n == 22)	// CONTROL
-	{
-		regsel = ARMv6MSCS::REGSEL::CONTROL_PRIMASK;
-		ret = scs->readReg(regsel, out);
-		if (ret == OK)
-			*out = (*out >> 24) & 0xFF;
-		return ret;
-	}
-
 	return scs->readReg(regsel, out);
 }
 
@@ -201,25 +184,43 @@ errno_t ADIv5TI::readRegister(const uint32_t n, uint64_t* out1, uint64_t* out2)
 
 errno_t ADIv5TI::writeRegister(const uint32_t n, const uint32_t data)
 {
-	// TODO
-	(void)n;
-	(void)data;
-	return 0;
+	if (!scs)
+		return ENODEV;
+
+	ARMv6MSCS::REGSEL regsel = (ARMv6MSCS::REGSEL)n;
+	int32_t ret;
+
+	if (n == 19 || n == 20 || n == 21 || n == 22)
+	{
+		uint32_t tmp;
+		ret = scs->readReg(ARMv6MSCS::REGSEL::CONTROL_PRIMASK, &tmp);
+		if (ret == OK)
+		{
+			if (n == 19)		// PRIMASK
+				tmp = (tmp & 0xFFFFFF00) | (data & 0xFF);
+			else if (n == 20)	// BASEPRI
+				tmp = (tmp & 0xFFFF00FF) | ((data & 0xFF) << 8);
+			else if (n == 21)	// FAULTMASK
+				tmp = (tmp & 0xFF00FFFF) | ((data & 0xFF) << 16);
+			else if (n == 22)	// CONTROL
+				tmp = (tmp & 0x00FFFFFF) | ((data & 0xFF) << 24);
+			ret = scs->writeReg(ARMv6MSCS::REGSEL::CONTROL_PRIMASK, tmp);
+		}
+		return ret;
+	}
+	return scs->writeReg(regsel, data);
 }
 
 errno_t ADIv5TI::writeRegister(const uint32_t n, const uint64_t data)
 {
-	(void)n;
-	(void)data;
-	return 0;
+	// [TODO] support 64bit
+	return writeRegister(n, data);
 }
 
 errno_t ADIv5TI::writeRegister(const uint32_t n, const uint64_t data1, const uint64_t data2)
 {
-	(void)n;
-	(void)data1;
-	(void)data2;
-	return 0;
+	// [TODO] support 128bit
+	return writeRegister(n, data1);
 }
 
 errno_t ADIv5TI::readGenericRegisters(std::vector<uint32_t>* array)
@@ -229,22 +230,25 @@ errno_t ADIv5TI::readGenericRegisters(std::vector<uint32_t>* array)
 	for (int i = 0; i < 16; i++)
 	{
 		uint32_t value;
-		if (readRegister(i, &value) == OK)
-		{
-			array->push_back(value);
-		}
-		else
-		{
-			return -1;
-		}
+		errno_t ret = readRegister(i, &value);
+		if (ret != OK)
+			return ret;
+		array->push_back(value);
 	}
 	return OK;
 }
 
 errno_t ADIv5TI::writeGenericRegisters(const std::vector<uint32_t>& array)
 {
-	// TODO
-	(void)array;
+	if (array.size() != 16)
+		return EINVAL;
+
+	for (int i = 0; i < 16; i++)
+	{
+		errno_t ret = writeRegister(i, array[i]);
+		if (ret != OK)
+			return ret;
+	}
 	return OK;
 }
 
@@ -263,7 +267,7 @@ errno_t ADIv5TI::readMemory(uint64_t addr, uint32_t len, std::vector<uint8_t>* a
 		ret = mem->read((uint32_t)addr, &data);
 		if (ret != OK)
 			return ret;
-		_DBGPRT("readMemory 0x%08x 0x%08x\n", (uint32_t)addr, data);
+		//_DBGPRT("readMemory 0x%08x 0x%08x\n", (uint32_t)addr, data);
 		array->push_back(data & 0xFF);
 		array->push_back((data >> 8) & 0xFF);
 		array->push_back((data >> 16) & 0xFF);
@@ -281,22 +285,46 @@ errno_t ADIv5TI::readMemory(uint64_t addr, uint32_t len, std::vector<uint8_t>* a
 		if (len > 0) { array->push_back((data >> 0) & 0xFF); len--; }
 		if (len > 0) { array->push_back((data >> 8) & 0xFF); len--; }
 		if (len > 0) { array->push_back((data >> 16) & 0xFF); len--; }
-		if (len > 0) { array->push_back((data >> 24) & 0xFF); len--; }
+		ASSERT_RELEASE(len == 0);
 	}
 	return OK;
 }
 
 errno_t ADIv5TI::writeMemory(uint64_t addr, uint32_t len, const std::vector<uint8_t>& array)
 {
-	// TODO
-	(void)addr;
-	(void)len;
-	(void)array;
-
 	if (!mem)
 		return ENODEV;
 
-	return 0;
+	int32_t ret;
+	uint32_t i = 0;
+	for (; i < len / 4; i++)
+	{
+		uint32_t data = (array[i * 4 + 3] << 24) | (array[i * 4 + 2] << 16) | (array[i * 4 + 1] << 8) | array[i * 4];
+		ret = mem->write((uint32_t)addr, data);
+		if (ret != OK)
+			return ret;
+		addr += 4;
+	}
+
+	len -= i * 4;
+	if (len > 0)
+	{
+		_DBGPRT("[WARNING] Unalighned write may cause unexpected result. 0x%08x 0x%08x\n", (uint32_t)addr, len);
+
+		uint32_t data;
+		ret = mem->read((uint32_t)addr, &data);
+		if (ret != OK)
+			return ret;
+		if (len > 0) { data = (data & 0xFFFFFF00) | array[i * 4]; len--; }
+		if (len > 0) { data = (data & 0xFFFF00FF) | (array[i * 4 + 1] << 8); len--; }
+		if (len > 0) { data = (data & 0xFF00FFFF) | (array[i * 4 + 2] << 16); len--; }
+		ASSERT_RELEASE(len == 0);
+
+		ret = mem->write((uint32_t)addr, data);
+		if (ret != OK)
+			return ret;
+	}
+	return OK;
 }
 
 errno_t ADIv5TI::monitor(const std::string command, std::string* output)

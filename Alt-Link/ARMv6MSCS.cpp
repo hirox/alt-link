@@ -220,7 +220,7 @@ int32_t ARMv6MSCS::readReg(REGSEL reg, uint32_t* data)
 	if (ret != OK)
 		return ret;
 
-	_DBGPRT("readReg %d 0x%08x\n", reg, *data);
+	//_DBGPRT("readReg %d 0x%08x\n", reg, *data);
 	return OK;
 }
 

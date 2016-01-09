@@ -82,6 +82,7 @@ enum
 	ARM_PART_SCS_M47	= 0xC,
 	ARM_PART_FBP_M7		= 0xE,
 	ARM_PART_TPIU_M3	= 0x923,
+	ARM_PART_ETM_M4		= 0x925,
 	ARM_PART_TPIU_M4	= 0x9A1
 };
 
@@ -122,10 +123,18 @@ const char* ADIv5::Component::getName()
 	
 	if (cid.ComponentClass == CID::DEBUG_COMPONENT)
 	{
-		if (pid.isARM() && pid.PART == ARM_PART_TPIU_M3)
-			return "Cortex-M3 TPIU (Trace Port Interface Unit)";
-		if (pid.isARM() && pid.PART == ARM_PART_TPIU_M4)
-			return "Cortex-M4 TPIU (Trace Port Interface Unit)";
+		if (pid.isARM())
+		{
+			switch (pid.PART)
+			{
+			case ARM_PART_TPIU_M3:
+				return "Cortex-M3 TPIU (Trace Port Interface Unit)";
+			case ARM_PART_ETM_M4:
+				return "Cortex-M4 ETM (Embedded Trace Macrocell)";
+			case ARM_PART_TPIU_M4:
+				return "Cortex-M4 TPIU (Trace Port Interface Unit)";
+			}
+		}
 
 		//if (pid.isARM() && pid.PART == 0x)
 		//	return "Cortex-M3 ETM";
