@@ -27,6 +27,7 @@ public:
 	};
 	static_assert(CONFIRM_UINT32(DP_IDCODE));
 
+private:
 	union DP_CTRL_STAT
 	{
 		struct
@@ -75,6 +76,8 @@ public:
 		uint32_t lastApBank = 0;
 
 		int32_t select(uint32_t ap, uint32_t reg);
+		errno_t clearError();
+		errno_t checkStatus(uint32_t ap);
 	} ap;
 
 	class MEM_AP

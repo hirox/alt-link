@@ -19,7 +19,7 @@
  * - SWD accesses these directly, sometimes needing SELECT.CTRLSEL
  */
 #define DP_REG_IDCODE		BANK_REG(0x0, 0x0)	/* SWD: read / DPIDR */
-#define DP_ABORT			BANK_REG(0x0, 0x0)	/* SWD: write */
+#define DP_REG_ABORT		BANK_REG(0x0, 0x0)	/* SWD: write */
 #define DP_REG_CTRL_STAT	BANK_REG(0x0, 0x4)	/* r/w */
 #define DP_RESEND			BANK_REG(0x0, 0x8)	/* SWD: read */
 #define DP_REG_SELECT		BANK_REG(0x0, 0x8)	/* JTAG: r/w; SWD: write */
@@ -28,13 +28,6 @@
 
 #define WCR_TO_TRN(wcr) ((uint32_t)(1 + (3 & ((wcr)) >> 8))) /* 1..4 clocks */
 #define WCR_TO_PRESCALE(wcr) ((uint32_t)(7 & ((wcr))))       /* impl defined */
-
-/* Fields of the DP's AP ABORT register */
-#define DAPABORT (1UL << 0)
-#define STKCMPCLR (1UL << 1)  /* SWD-only */
-#define STKERRCLR (1UL << 2)  /* SWD-only */
-#define WDERRCLR (1UL << 3)   /* SWD-only */
-#define ORUNERRCLR (1UL << 4) /* SWD-only */
 
 #if 0
 /* Fields of the DP's CTRL/STAT register */
@@ -54,6 +47,22 @@
 #define CSYSPWRUPREQ (1UL << 30)
 #define CSYSPWRUPACK (1UL << 31)
 #endif
+
+union DP_ABORT
+{
+	struct
+	{
+		/* Fields of the DP's AP ABORT register */
+		uint32_t DAPABORT	: 1;
+		uint32_t STKCMPCLR	: 1;	/* SWD-only */
+		uint32_t STKERRCLR	: 1;	/* SWD-only */
+		uint32_t WDERRCLR	: 1;	/* SWD-only */
+		uint32_t ORUNERRCLR	: 1;	/* SWD-only */
+		uint32_t Reserved	: 27;
+	};
+	uint32_t raw;
+};
+static_assert(CONFIRM_UINT32(DP_ABORT));
 
 union DP_SELECT
 {
@@ -87,6 +96,9 @@ union AP_IDR
 		uint32_t Revision	:4;
 	};
 	uint32_t raw;
+	bool isAHB() { return (Type == 0x01 && Class == MemoryAccessPort) ? true : false; }
+	bool isAPB() { return (Type == 0x02 && Class == MemoryAccessPort) ? true : false; }
+	bool isAXI() { return (Type == 0x04 && Class == MemoryAccessPort) ? true : false; }
 };
 static_assert(CONFIRM_UINT32(AP_IDR));
 
@@ -109,8 +121,30 @@ union MEM_AP_CSW
 		uint32_t DbgSwEnable	: 1;
 	};
 	uint32_t raw;
+	void print();
 };
 static_assert(CONFIRM_UINT32(MEM_AP_CSW));
+
+union AHB_AP_CSW
+{
+	struct
+	{
+		uint32_t Size			: 3;
+		uint32_t Reseved0		: 1;
+		uint32_t AddrInc		: 2;
+		uint32_t DeviceEn		: 1;
+		uint32_t TrInProg		: 1;
+		uint32_t Mode			: 4;
+		uint32_t Reserved1		: 13;
+		uint32_t Hprot1			: 1;
+		uint32_t Reserved2		: 3;
+		uint32_t MasterType		: 1;
+		uint32_t Reserved3		: 2;
+	};
+	uint32_t raw;
+	void print();
+};
+static_assert(CONFIRM_UINT32(AHB_AP_CSW));
 
 union MEM_AP_CFG
 {
@@ -259,6 +293,54 @@ int32_t ADIv5::powerupDebug()
 	return OK;
 }
 
+void MEM_AP_CSW::print()
+{
+	_DBGPRT("    Control/Status    : 0x%08x\n", raw);
+	_DBGPRT("      Device          : %s\n", DeviceEn ? "enabled" : "disabled");
+	if (DeviceEn)
+		_DBGPRT("      Debug SW Access : %s\n", DbgSwEnable ? "enabled" : "disabled");
+	_DBGPRT("      Secure Access   : %s\n", SPIDEN ? "enabled" : "disabled");
+	_DBGPRT("      SProt/Prot/Type : %x/%x/%x\n", SProt, Prot, Type);
+	_DBGPRT("      Mode            : %s\n",
+		Mode == 0 ? "basic" :
+		Mode == 1 ? "barrier support enabled" : "UNKNOWN");
+	_DBGPRT("      Transfer        : %s\n", TrInProg ? "in progress" : "idle");
+	_DBGPRT("      Auto increment  : %s\n",
+		AddrInc == 0 ? "off" :
+		AddrInc == 1 ? "single" :
+		AddrInc == 2 ? "packed" : "UNKNOWN");
+	_DBGPRT("      Size            : %s\n",
+		Size == 0 ? "8bit" :
+		Size == 1 ? "16bit" :
+		Size == 2 ? "32bit" :
+		Size == 3 ? "64bit" :
+		Size == 4 ? "128bit" :
+		Size == 5 ? "256bit" : "UNKNOWN");
+}
+
+void AHB_AP_CSW::print()
+{
+	_DBGPRT("    Control/Status    : 0x%08x\n", raw);
+	_DBGPRT("      Device          : %s\n", DeviceEn ? "enabled" : "disabled");
+	_DBGPRT("      Master          : %s\n", MasterType ? "debug" : "core [!]");
+	_DBGPRT("      Hprot1          : %s\n", Hprot1 ? "privileged" : "user [!]");
+	_DBGPRT("      Mode            : %s\n",
+		Mode == 0 ? "basic" :
+		Mode == 1 ? "barrier support enabled" : "UNKNOWN");
+	_DBGPRT("      Transfer        : %s\n", TrInProg ? "in progress" : "idle");
+	_DBGPRT("      Auto increment  : %s\n",
+		AddrInc == 0 ? "off" :
+		AddrInc == 1 ? "single" :
+		AddrInc == 2 ? "packed" : "UNKNOWN");
+	_DBGPRT("      Size            : %s\n",
+		Size == 0 ? "8bit" :
+		Size == 1 ? "16bit" :
+		Size == 2 ? "32bit" :
+		Size == 3 ? "64bit" :
+		Size == 4 ? "128bit" :
+		Size == 5 ? "256bit" : "UNKNOWN");
+}
+
 int32_t ADIv5::scanAPs()
 {
 	_DBGPRT("AP SCAN\n");
@@ -279,9 +361,9 @@ int32_t ADIv5::scanAPs()
 		_DBGPRT("      Designer   : %s\n", idr.ContinuationCode == 0x04 && idr.IdentityCode == 0x3b ? "ARM" : "UNKNOWN");
 		_DBGPRT("      Class/Type : %s\n",
 			idr.Type == 0x00 && idr.Class == AP_IDR::NoDefined ? "JTAG-AP" :
-			idr.Type == 0x01 && idr.Class == AP_IDR::MemoryAccessPort ? "MEM-AP AMBA AHB bus" :
-			idr.Type == 0x02 && idr.Class == AP_IDR::MemoryAccessPort ? "MEM-AP AMBA APB2 or APB3 bus" :
-			idr.Type == 0x04 && idr.Class == AP_IDR::MemoryAccessPort ? "MEM-AP AMBA AXI4 ot AXI4 bus" : "UNKNOWN");
+			idr.isAHB() ? "MEM-AP AMBA AHB bus" :
+			idr.isAPB() ? "MEM-AP AMBA APB2 or APB3 bus" :
+			idr.isAXI() ? "MEM-AP AMBA AXI4 ot AXI4 bus" : "UNKNOWN");
 		_DBGPRT("      Variant    : %x\n", idr.Variant);
 		_DBGPRT("      Revision   : %x\n", idr.Revision);
 
@@ -295,32 +377,24 @@ int32_t ADIv5::scanAPs()
 			_DBGPRT("    BASE : 0x%08x\n", base & 0xFFFFF000);
 			_DBGPRT("      Debug entry : %s\n", base & 0x1 ? "present" : "no");
 
-			MEM_AP_CSW csw;
-			ret = ap.read(i, MEM_AP_REG_CSW, &csw.raw);
-			if (ret != OK) {
-				return ret;
+			if (idr.isAHB())
+			{
+				AHB_AP_CSW csw;
+				ret = ap.read(i, MEM_AP_REG_CSW, &csw.raw);
+				if (ret != OK) {
+					return ret;
+				}
+				csw.print();
 			}
-			_DBGPRT("    Control/Status    : 0x%08x\n", csw.raw);
-			_DBGPRT("      Device          : %s\n", csw.DeviceEn ? "enabled" : "disabled");
-			if (csw.DeviceEn)
-				_DBGPRT("      Debug SW Access : %s\n", csw.DbgSwEnable ? "enabled" : "disabled");
-			_DBGPRT("      Secure Access   : %s\n", csw.SPIDEN ? "enabled" : "disabled");
-			_DBGPRT("      SProt/Prot/Type : %x/%x/%x\n", csw.SProt, csw.Prot, csw.Type);
-			_DBGPRT("      Mode            : %s\n",
-				csw.Mode == 0 ? "Basic" :
-				csw.Mode == 1 ? "Barrier support enabled" : "UNKNOWN");
-			_DBGPRT("      Transfer        : %s\n", csw.TrInProg ? "in progress" : "idle");
-			_DBGPRT("      Auto increment  : %s\n",
-				csw.AddrInc == 0 ? "off" :
-				csw.AddrInc == 1 ? "single" :
-				csw.AddrInc == 2 ? "packed" : "UNKNOWN");
-			_DBGPRT("      Size            : %s\n",
-				csw.Size == 0 ? "8bit" :
-				csw.Size == 1 ? "16bit" :
-				csw.Size == 2 ? "32bit" :
-				csw.Size == 3 ? "64bit" :
-				csw.Size == 4 ? "128bit" :
-				csw.Size == 5 ? "256bit" : "UNKNOWN");
+			else
+			{
+				MEM_AP_CSW csw;
+				ret = ap.read(i, MEM_AP_REG_CSW, &csw.raw);
+				if (ret != OK) {
+					return ret;
+				}
+				csw.print();
+			}
 
 			std::shared_ptr<MEM_AP> memAp = std::make_shared<MEM_AP>(i, ap);
 			std::shared_ptr<Component> component = std::make_shared<Component>(Memory(*memAp, base & 0xFFFFF000));
@@ -371,22 +445,130 @@ int32_t ADIv5::AP::select(uint32_t ap, uint32_t reg)
 	return OK;
 }
 
+errno_t ADIv5::AP::clearError()
+{
+	DP_CTRL_STAT ctrlStat;
+	errno_t ret = dap.dpRead(DP_REG_CTRL_STAT, &ctrlStat.raw);
+	if (ret != OK)
+		return ret;
+
+	if (ctrlStat.STICKYERR || ctrlStat.WDATAERR)
+	{
+		if (ctrlStat.STICKYERR)
+			_DBGPRT("Sticky Error is detected. ");
+		if (ctrlStat.WDATAERR)
+			_DBGPRT("Protocol Error is detected. ");
+		_DBGPRT("Trying to clear... ");
+
+		DP_ABORT abort;
+		abort.raw = 0;
+		abort.STKERRCLR = 1;
+		abort.WDERRCLR = 1;
+		ret = dap.dpWrite(DP_REG_ABORT, abort.raw);
+		if (ret != OK)
+		{
+			_DBGPRT("FAILED. (write)\n");
+			return ret;
+		}
+
+		ret = dap.dpRead(DP_REG_CTRL_STAT, &ctrlStat.raw);
+		if (ret != OK)
+		{
+			_DBGPRT("FAILED. (read)\n");
+			return ret;
+		}
+
+		if (ctrlStat.STICKYERR || ctrlStat.WDATAERR)
+			_DBGPRT("FAILED. (clear)\n");
+		else
+			_DBGPRT("OK.\n");
+	}
+	return OK;
+}
+
+errno_t ADIv5::AP::checkStatus(uint32_t ap)
+{
+	// clear error and retry
+	errno_t ret = clearError();
+	if (ret != OK)
+		return ret;
+
+	AP_IDR idr;
+	ret = read(ap, AP_REG_IDR, &idr.raw);
+	if (ret != OK) {
+		return ret;
+	}
+
+	if (idr.raw == 0)
+		return EINVAL;
+
+	if (idr.isAHB())
+	{
+		AHB_AP_CSW csw;
+		ret = read(ap, MEM_AP_REG_CSW, &csw.raw);
+		if (ret != OK)
+			return ret;
+
+		if (!csw.MasterType || !csw.Hprot1 || !csw.DeviceEn)
+		{
+			csw.MasterType = 1;
+			csw.Hprot1 = 1;
+			csw.DeviceEn = 1;
+
+			ret = write(ap, MEM_AP_REG_CSW, csw.raw);
+			if (ret != OK)
+				return ret;
+		}
+	}
+	return OK;
+}
+
 int32_t ADIv5::AP::read(uint32_t ap, uint32_t reg, uint32_t *data)
 {
 	int ret = select(ap, reg);
 	if (ret != OK)
+	{
+		errno_t ret2 = checkStatus(ap);
+		if (ret2 != OK)
+			return ret;
+		ret = select(ap, reg);
+	}
+	if (ret != OK)
 		return ret;
 
-	return dap.apRead(reg, data);
+	ret = dap.apRead(reg, data);
+	if (ret != OK)
+	{
+		errno_t ret2 = checkStatus(ap);
+		if (ret2 != OK)
+			return ret;
+		ret = dap.apRead(reg, data);
+	}
+	return ret;
 }
 
 int32_t ADIv5::AP::write(uint32_t ap, uint32_t reg, uint32_t data)
 {
 	int ret = select(ap, reg);
 	if (ret != OK)
+	{
+		errno_t ret2 = checkStatus(ap);
+		if (ret2 != OK)
+			return ret;
+		ret = select(ap, reg);
+	}
+	if (ret != OK)
 		return ret;
 
-	return dap.apWrite(reg, data);
+	ret = dap.apWrite(reg, data);
+	if (ret != OK)
+	{
+		errno_t ret2 = checkStatus(ap);
+		if (ret2 != OK)
+			return ret;
+		ret = dap.apWrite(reg, data);
+	}
+	return ret;
 }
 
 bool ADIv5::MEM_AP::isSameTAR(uint32_t addr, uint32_t* reg)

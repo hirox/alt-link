@@ -177,6 +177,9 @@ errno_t ADIv5TI::isRunning(bool* running, uint8_t* signal)
 			*signal = SIGTRAP;
 		else if (dfsr.HALTED)
 			*signal = SIGTRAP;
+
+		_DBGPRT("found stop\n");
+		dfsr.print();
 	}
 	return OK;
 }
