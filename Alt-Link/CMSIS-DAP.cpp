@@ -831,7 +831,7 @@ int32_t CMSISDAP::dpapWrite(bool dp, uint32_t reg, uint32_t data)
 	ret = usbTx(idx);
 
 	if (packetBuf[1] != 0x01) {
-		ret = packetBuf[2];
+		return packetBuf[2];
 	}
 	return OK;
 }
