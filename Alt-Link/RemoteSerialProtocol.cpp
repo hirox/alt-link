@@ -131,11 +131,11 @@ void RemoteSerialProtocol::processBreakWatchPoint(const std::string& payload)
 
 		if (payload[0] == 'Z')
 		{
-			targetInterface.setBreakPoint(type, addr, kind);
+			targetInterface.setBreakPoint(type, addr, (TargetInterface::BreakPointKind)kind);
 		}
 		else
 		{
-			targetInterface.unsetBreakPoint(type, addr, kind);
+			targetInterface.unsetBreakPoint(type, addr, (TargetInterface::BreakPointKind)kind);
 		}
 		break;
 	}

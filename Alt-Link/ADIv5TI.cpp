@@ -43,6 +43,25 @@ ADIv5TI::ADIv5TI(ADIv5 _adi) : adi(_adi)
 		dwt->printCtrl();
 	}
 
+	auto _bpu = adi.findARMv6MBPU();
+	if (_bpu.size() > 0)
+	{
+		bpu = std::make_shared<ARMv6MBPU>(*_bpu[0]);
+		_DBGPRT("ARMv6-M BPU\n");
+		bpu->init();
+		bpu->printCtrl();
+	}
+
+	auto _fpb = adi.findARMv7MFPB();
+	if (_fpb.size() > 0)
+	{
+		fpb = std::make_shared<ARMv7MFPB>(*_fpb[0]);
+		_DBGPRT("ARMv7-M FPB\n");
+		fpb->init();
+		fpb->printCtrl();
+		fpb->printRemap();
+	}
+
 	auto _mem = adi.findSysmem();
 	if (_mem.size() > 0)
 	{
@@ -108,12 +127,12 @@ int32_t ADIv5TI::interrupt(uint8_t* signal)
 	return ENODEV;
 }
 
-int32_t ADIv5TI::setBreakPoint(BreakPointType type, uint64_t addr, uint32_t kind)
+int32_t ADIv5TI::setBreakPoint(BreakPointType type, uint64_t addr, BreakPointKind kind)
 {
 	return -1;	// not supported
 }
 
-int32_t ADIv5TI::unsetBreakPoint(BreakPointType type, uint64_t addr, uint32_t kind)
+int32_t ADIv5TI::unsetBreakPoint(BreakPointType type, uint64_t addr, BreakPointKind kind)
 {
 	return -1;	// not supported
 }

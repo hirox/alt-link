@@ -74,13 +74,13 @@ enum
 	ARM_PART_SCS_M3		= 0,
 	ARM_PART_ITM_M347	= 1,
 	ARM_PART_DWT_M347	= 2,
-	ARM_PART_FBP_M34	= 3,
+	ARM_PART_FPB_M34	= 3,
 	ARM_PART_CTI_M7		= 6,
 	ARM_PART_SCS_M00P	= 8,
 	ARM_PART_DWT_M00P	= 0xA,
 	ARM_PART_BPU_M00P	= 0xB,
 	ARM_PART_SCS_M47	= 0xC,
-	ARM_PART_FBP_M7		= 0xE,
+	ARM_PART_FPB_M7		= 0xE,
 	ARM_PART_TPIU_M3	= 0x923,
 	ARM_PART_ETM_M4		= 0x925,
 	ARM_PART_TPIU_M4	= 0x9A1
@@ -103,8 +103,8 @@ const char* ADIv5::Component::getName()
 				return "Cortex-M3/M4/M7 ITM (Instrumentation Trace Macrocell unit)";
 			case ARM_PART_DWT_M347:
 				return "Cortex-M3/M4/M7 DWT (Data Watchpoint and Trace unit)";
-			case ARM_PART_FBP_M34:
-				return "Cortex-M3/M4 FBP (Flash Patch and Breakpoint unit)";
+			case ARM_PART_FPB_M34:
+				return "Cortex-M3/M4 FPB (Flash Patch and Breakpoint unit)";
 			case ARM_PART_CTI_M7:
 				return "Cortex-M7 CTI (Cross Trigger Interface)";
 			case ARM_PART_SCS_M00P:
@@ -112,11 +112,11 @@ const char* ADIv5::Component::getName()
 			case ARM_PART_DWT_M00P:
 				return "Cortex-M0/M0+ DWT (Data Watchpoint and Trace unit)";
 			case ARM_PART_BPU_M00P:
-				return "Cortex-M0/M0+ BPU (Break Point Unit)";	// Subset of FBP
+				return "Cortex-M0/M0+ BPU (Break Point Unit)";	// Subset of FPB
 			case ARM_PART_SCS_M47:
 				return "Cortex-M4/M7(w/o FPU) SCS (System Control Space)";
-			case ARM_PART_FBP_M7:
-				return "Cortex-M7 FBP (Flash Patch and Breakpoint unit)";
+			case ARM_PART_FPB_M7:
+				return "Cortex-M7 FPB (Flash Patch and Breakpoint unit)";
 			}
 		}
 	}
@@ -168,6 +168,25 @@ bool ADIv5::Component::isARMv7MDWT()
 	if (cid.ComponentClass == CID::GENERIC_IP)
 		if (pid.isARM())
 			if (pid.PART == ARM_PART_DWT_M347)
+				return true;
+	return false;
+}
+
+bool ADIv5::Component::isARMv6MBPU()
+{
+	if (cid.ComponentClass == CID::GENERIC_IP)
+		if (pid.isARM())
+			if (pid.PART == ARM_PART_BPU_M00P)
+				return true;
+	return false;
+}
+
+bool ADIv5::Component::isARMv7MFPB()
+{
+	if (cid.ComponentClass == CID::GENERIC_IP)
+		if (pid.isARM())
+			if (pid.PART == ARM_PART_FPB_M34 ||
+				pid.PART == ARM_PART_FPB_M7)
 				return true;
 	return false;
 }

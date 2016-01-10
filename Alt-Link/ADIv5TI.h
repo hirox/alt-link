@@ -7,6 +7,8 @@
 #include "ADIv5.h"
 #include "ARMv6MSCS.h"
 #include "ARMv6MDWT.h"
+#include "ARMv6MBPU.h"
+#include "ARMv7MFPB.h"
 #include "TargetInterface.h"
 
 class ADIv5TI : public TargetInterface
@@ -15,6 +17,8 @@ private:
 	ADIv5& adi;
 	std::shared_ptr<ARMv6MSCS> scs;
 	std::shared_ptr<ARMv6MDWT> dwt;
+	std::shared_ptr<ARMv6MBPU> bpu;
+	std::shared_ptr<ARMv7MFPB> fpb;
 	std::shared_ptr<ADIv5::MEM_AP> mem;
 
 public:
@@ -30,8 +34,8 @@ public:
 	virtual int32_t step(uint8_t* signal);
 	virtual int32_t interrupt(uint8_t* signal);
 
-	virtual int32_t setBreakPoint(BreakPointType type, uint64_t addr, uint32_t kind);
-	virtual int32_t unsetBreakPoint(BreakPointType type, uint64_t addr, uint32_t kind);
+	virtual int32_t setBreakPoint(BreakPointType type, uint64_t addr, BreakPointKind kind);
+	virtual int32_t unsetBreakPoint(BreakPointType type, uint64_t addr, BreakPointKind kind);
 
 	virtual int32_t setWatchPoint(WatchPointType type, uint64_t addr, uint32_t kind);
 	virtual int32_t unsetWatchPoint(WatchPointType type, uint64_t addr, uint32_t kind);

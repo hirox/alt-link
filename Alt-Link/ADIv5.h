@@ -112,6 +112,8 @@ public:
 		bool isARMv6MSCS();
 		bool isARMv6MDWT();
 		bool isARMv7MDWT();
+		bool isARMv6MBPU();
+		bool isARMv7MFPB();
 
 	private:
 		union CID
@@ -214,6 +216,8 @@ public:
 	std::vector<std::shared_ptr<Component>> findARMv6MSCS();
 	std::vector<std::shared_ptr<Component>> findARMv6MDWT();
 	std::vector<std::shared_ptr<Component>> findARMv7MDWT();
+	std::vector<std::shared_ptr<Component>> findARMv6MBPU();
+	std::vector<std::shared_ptr<Component>> findARMv7MFPB();
 	std::vector<std::shared_ptr<MEM_AP>> findSysmem();
 
 private:

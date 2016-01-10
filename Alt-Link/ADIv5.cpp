@@ -581,6 +581,20 @@ std::vector<std::shared_ptr<ADIv5::Component>> ADIv5::findARMv7MDWT()
 	});
 }
 
+std::vector<std::shared_ptr<ADIv5::Component>> ADIv5::findARMv6MBPU()
+{
+	return find([](Component& component) {
+		return component.isARMv6MBPU() ? true : false;
+	});
+}
+
+std::vector<std::shared_ptr<ADIv5::Component>> ADIv5::findARMv7MFPB()
+{
+	return find([](Component& component) {
+		return component.isARMv7MFPB() ? true : false;
+	});
+}
+
 std::vector<std::shared_ptr<ADIv5::MEM_AP>> ADIv5::findSysmem()
 {
 	std::vector<std::shared_ptr<MEM_AP>> v;

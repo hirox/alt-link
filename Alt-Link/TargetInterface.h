@@ -22,8 +22,14 @@ public:
 		MEMORY = 0,
 		HARDWARE = 1
 	};
-	virtual int32_t setBreakPoint(BreakPointType type, uint64_t addr, uint32_t kind) = 0;
-	virtual int32_t unsetBreakPoint(BreakPointType type, uint64_t addr, uint32_t kind) = 0;
+	enum BreakPointKind
+	{
+		THUMB16 = 2,
+		THUMB32 = 3,
+		ARM32	= 4
+	};
+	virtual int32_t setBreakPoint(BreakPointType type, uint64_t addr, BreakPointKind kind) = 0;
+	virtual int32_t unsetBreakPoint(BreakPointType type, uint64_t addr, BreakPointKind kind) = 0;
 
 	enum WatchPointType
 	{
