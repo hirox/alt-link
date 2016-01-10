@@ -5,10 +5,10 @@
 
 void Converter::put(std::stringstream& stream, uint32_t data)
 {
-	put(stream, (uint8_t)data);	data = data >> 8;
-	put(stream, (uint8_t)data);	data = data >> 8;
-	put(stream, (uint8_t)data);	data = data >> 8;
-	put(stream, (uint8_t)data);
+	put(stream, (uint8_t)(data & 0xFF));	data = data >> 8;
+	put(stream, (uint8_t)(data & 0xFF));	data = data >> 8;
+	put(stream, (uint8_t)(data & 0xFF));	data = data >> 8;
+	put(stream, (uint8_t)(data & 0xFF));
 }
 
 void Converter::put(std::stringstream& stream, uint8_t data)

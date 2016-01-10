@@ -127,14 +127,28 @@ int32_t ADIv5TI::interrupt(uint8_t* signal)
 	return ENODEV;
 }
 
-int32_t ADIv5TI::setBreakPoint(BreakPointType type, uint64_t addr, BreakPointKind kind)
+errno_t ADIv5TI::setBreakPoint(BreakPointType type, uint64_t addr, BreakPointKind kind)
 {
-	return -1;	// not supported
+	if (type == BreakPointType::HARDWARE)
+	{
+		if (bpu)
+			return bpu->addBreakPoint((uint32_t)addr);
+		else if (fpb)
+			return fpb->addBreakPoint((uint32_t)addr);
+	}
+	return ERSP_NOT_SUPPORTED;
 }
 
 int32_t ADIv5TI::unsetBreakPoint(BreakPointType type, uint64_t addr, BreakPointKind kind)
 {
-	return -1;	// not supported
+	if (type == BreakPointType::HARDWARE)
+	{
+		if (bpu)
+			return bpu->delBreakPoint((uint32_t)addr);
+		else if (fpb)
+			return fpb->delBreakPoint((uint32_t)addr);
+	}
+	return ERSP_NOT_SUPPORTED;
 }
 
 int32_t ADIv5TI::setWatchPoint(WatchPointType type, uint64_t addr, uint32_t kind)

@@ -131,11 +131,11 @@ void RemoteSerialProtocol::processBreakWatchPoint(const std::string& payload)
 
 		if (payload[0] == 'Z')
 		{
-			targetInterface.setBreakPoint(type, addr, (TargetInterface::BreakPointKind)kind);
+			sendOKorError(targetInterface.setBreakPoint(type, addr, (TargetInterface::BreakPointKind)kind));
 		}
 		else
 		{
-			targetInterface.unsetBreakPoint(type, addr, (TargetInterface::BreakPointKind)kind);
+			sendOKorError(targetInterface.unsetBreakPoint(type, addr, (TargetInterface::BreakPointKind)kind));
 		}
 		break;
 	}
@@ -160,11 +160,11 @@ void RemoteSerialProtocol::processBreakWatchPoint(const std::string& payload)
 
 		if (payload[0] == 'Z')
 		{
-			targetInterface.setWatchPoint(type, addr, kind);
+			sendOKorError(targetInterface.setWatchPoint(type, addr, kind));
 		}
 		else
 		{
-			targetInterface.setWatchPoint(type, addr, kind);
+			sendOKorError(targetInterface.setWatchPoint(type, addr, kind));
 		}
 		break;
 	}
@@ -387,24 +387,29 @@ int32_t RemoteSerialProtocol::sendError(errno_t error)
 	return sendOKorError(error);
 }
 
+int32_t RemoteSerialProtocol::sendNotSupported()
+{
+	return sendOKorError(ERSP_NOT_SUPPORTED);
+}
+
 int32_t RemoteSerialProtocol::sendOKorError(errno_t error)
 {
 	PacketTransfer::Packet packet;
-
 	if (error == OK)
 	{
 		packet = makePacket("OK");
 	}
+	else if (error < 0)
+	{
+		packet = makePacket("");	// Not Supported
+	}
 	else
 	{
-		packet = makePacket("E" + Converter::toHex((uint32_t)error));
+		if (error > 0xFF)
+			packet = makePacket("E" + Converter::toHex((uint32_t)error));
+		else
+			packet = makePacket("E" + Converter::toHex((uint8_t)error));
 	}
-	return sendPacket(packet);
-}
-
-int32_t RemoteSerialProtocol::sendNotSupported()
-{
-	auto packet = makePacket("");
 	return sendPacket(packet);
 }
 
