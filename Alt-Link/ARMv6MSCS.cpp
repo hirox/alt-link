@@ -318,6 +318,20 @@ void ARMv6MSCS::printDEMCR()
 	_DBGPRT("      ResetVector : %s\n", d.VC_CORERESET ? "trap" : "don't trap");
 }
 
+errno_t ARMv6MSCS::isHalt(bool* halt)
+{
+	ASSERT_RELEASE(halt != nullptr);
+
+	int32_t ret;
+	DHCSR_R d;
+	ret = ap.read(REG_DHCSR, &d.raw);
+	if (ret != OK)
+		return ret;
+
+	*halt = d.S_HALT ? true : false;
+	return OK;
+}
+
 int32_t ARMv6MSCS::halt(bool maskIntr)
 {
 	int32_t ret;

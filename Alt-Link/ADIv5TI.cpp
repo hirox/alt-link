@@ -2,6 +2,12 @@
 #include "stdafx.h"
 #include "ADIv5TI.h"
 
+enum Signal
+{
+	SIGINT		= 2,
+	SIGTRAP		= 5
+};
+
 ADIv5TI::ADIv5TI(ADIv5 _adi) : adi(_adi)
 {
 	auto _scs = adi.findARMv6MSCS();
@@ -125,6 +131,54 @@ int32_t ADIv5TI::interrupt(uint8_t* signal)
 		return scs->halt();
 
 	return ENODEV;
+}
+
+errno_t ADIv5TI::isRunning(bool* running, uint8_t* signal)
+{
+	ASSERT_RELEASE(running != nullptr);
+	ASSERT_RELEASE(signal != nullptr);
+
+	if (!scs)
+		return ENODEV;
+
+	bool halt;
+	errno_t ret = scs->isHalt(&halt);
+	if (ret != OK)
+		return ret;
+
+	if (!halt)
+	{
+		*running = true;
+		*signal = 0;
+		return OK;
+	}
+
+	ARMv6MSCS::DFSR dfsr;
+	ret = scs->readDFSR(&dfsr);
+	if (ret != OK)
+		return ret;
+
+	if (dfsr.raw == 0)
+	{
+		*running = true;
+		*signal = 0;
+	}
+	else
+	{
+		*running = false;
+
+		if (dfsr.EXTERNAL)
+			*signal = SIGINT;
+		else if (dfsr.VCATCH)
+			*signal = SIGINT;
+		else if (dfsr.DWTTRAP)
+			*signal = SIGTRAP;
+		else if (dfsr.BKPT)
+			*signal = SIGTRAP;
+		else if (dfsr.HALTED)
+			*signal = SIGTRAP;
+	}
+	return OK;
 }
 
 errno_t ADIv5TI::setBreakPoint(BreakPointType type, uint64_t addr, BreakPointKind kind)

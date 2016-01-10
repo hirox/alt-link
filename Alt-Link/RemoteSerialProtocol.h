@@ -11,6 +11,8 @@ class RemoteSerialProtocol : public PacketTransfer
 public:
 	explicit RemoteSerialProtocol(TargetInterface& interface) : targetInterface(interface), attached(false) {}
 
+	void idle();
+
 private:
 	virtual void requestResend();
 	virtual void errorPacketReceived();
@@ -34,6 +36,7 @@ private:
 	TargetInterface& targetInterface;
 	std::map<char, int32_t> threadId;
 	bool attached;
+	bool running;
 
 protected:
 	virtual int32_t send(const std::string& data) = 0;

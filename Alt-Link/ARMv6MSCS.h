@@ -106,6 +106,8 @@ public:
 	void printDHCSR();
 	void printDEMCR();
 
+	errno_t isHalt(bool* halt);
+
 	int32_t halt(bool maskIntr = false);
 	int32_t run(bool maskIntr = false);
 	int32_t step(bool maskIntr = false);

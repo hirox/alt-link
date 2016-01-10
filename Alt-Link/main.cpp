@@ -12,6 +12,8 @@
 
 class TCPConnection : public Poco::Net::TCPServerConnection
 {
+private:
+
 	class RSPtoDAP : public RemoteSerialProtocol
 	{
 	private:
@@ -42,15 +44,23 @@ public:
 		{
 			try
 			{
-				bytes = socket().receiveBytes(buffer, BUFFER_SIZE);
-				if (bytes)
+				if (!rsp.isEmpty() || socket().poll(Poco::Timespan(0, 1), Poco::Net::Socket::SELECT_READ))
 				{
-					std::string str(buffer, bytes);
-					rsp.push(str);
+					bytes = socket().receiveBytes(buffer, BUFFER_SIZE);
+					if (bytes)
+					{
+						std::string str(buffer, bytes);
+						rsp.push(str);
+					}
+				}
+				else
+				{
+					rsp.idle();
 				}
 			}
 			catch (Poco::Exception&)
 			{
+				break;
 			}
 		}
 	}

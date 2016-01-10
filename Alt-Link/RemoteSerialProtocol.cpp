@@ -14,6 +14,7 @@ void RemoteSerialProtocol::processQuery(const std::string& payload)
 		if (targetInterface.attach() == OK)
 		{
 			attached = true;
+			running = false;
 		}
 	}
 
@@ -219,6 +220,7 @@ void RemoteSerialProtocol::interruptReceived()
 	{
 		//"T050B:EC3D0040;0D:E03D0040;0F:D8070040;"
 		sendPacket(makePacket("S" + Converter::toHex(signal)));
+		running = false;
 	}
 }
 
@@ -245,6 +247,7 @@ void RemoteSerialProtocol::packetReceived(const std::string& payload)
 			targetInterface.setCurrentPC(std::stoll(payload.substr(1), nullptr, 16));
 		}
 		targetInterface.resume();
+		running = true;
 		break;
 	}
 	case 's':
@@ -422,4 +425,20 @@ int32_t RemoteSerialProtocol::sendPacket(const PacketTransfer::Packet& packet)
 {
 	lastPacket = packet;
 	return send(packet.toString());
+}
+
+void RemoteSerialProtocol::idle()
+{
+	if (running)
+	{
+		bool _running;
+		uint8_t signal;
+
+		auto ret = targetInterface.isRunning(&_running, &signal);
+		if (ret == OK && _running == false)
+		{
+			sendPacket(makePacket("S" + Converter::toHex(signal)));
+			running = false;
+		}
+	}
 }

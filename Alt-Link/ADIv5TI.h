@@ -33,6 +33,7 @@ public:
 	virtual void resume();
 	virtual int32_t step(uint8_t* signal);
 	virtual int32_t interrupt(uint8_t* signal);
+	virtual errno_t isRunning(bool* running, uint8_t* signal);
 
 	virtual int32_t setBreakPoint(BreakPointType type, uint64_t addr, BreakPointKind kind);
 	virtual int32_t unsetBreakPoint(BreakPointType type, uint64_t addr, BreakPointKind kind);

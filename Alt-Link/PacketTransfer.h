@@ -8,6 +8,7 @@ class PacketTransfer
 {
 public:
 	void push(std::string& data);
+	bool isEmpty() { return buffer.size() == 0 ? true : false; }
 	virtual ~PacketTransfer() {}
 
 protected:

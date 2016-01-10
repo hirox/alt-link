@@ -16,6 +16,7 @@ public:
 	virtual void resume() = 0;
 	virtual int32_t step(uint8_t* signal) = 0;
 	virtual int32_t interrupt(uint8_t* signal) = 0;
+	virtual errno_t isRunning(bool* running, uint8_t* signal) = 0;
 
 	enum BreakPointType
 	{
