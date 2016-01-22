@@ -168,7 +168,7 @@ void ARMv6MSCS::DFSR::print()
 		VCATCH ? "VectorCatch" : "",
 		DWTTRAP ? "DWTTRAP" : "",
 		BKPT ? "BKPT" : "",
-		HALTED ? "HALTED" : "");
+		HALTED ? "/HALTED" : "");
 }
 
 int32_t ARMv6MSCS::waitForRegReady()

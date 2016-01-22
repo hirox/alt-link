@@ -16,7 +16,7 @@ errno_t ARMv6MBPU::init()
 		return ret;
 
 	bpList = std::vector<BP_COMP>();
-	for (int i = 0; i < ctrl.num(); i++)
+	for (uint32_t i = 0; i < ctrl.num(); i++)
 	{
 		BP_COMP comp;
 		ret = ap.read(REG_BP_COMP0 + (i * 4), &comp.raw);

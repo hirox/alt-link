@@ -23,7 +23,7 @@ errno_t ARMv7MFPB::init()
 		return ret;
 
 	bpList = std::vector<FP_COMP>();
-	for (int i = 0; i < ctrl.num(); i++)
+	for (uint32_t i = 0; i < ctrl.num(); i++)
 	{
 		FP_COMP comp;
 		ret = ap.read(REG_FP_COMP0 + (i * 4), &comp.raw);

@@ -103,6 +103,8 @@ int _tmain(int argc, _TCHAR* argv[])
 	if (ret != OK)
 	{
 		_ERRPRT("Could not read DP_IDCODE. (0x%08x)\n", ret);
+		if (ret == CMSISDAP_ERR_NO_ACK)
+			_ERRPRT("Target did not respond. Please check the electrical connection.\n");
 		return ret;
 	}
 	idcode.print();

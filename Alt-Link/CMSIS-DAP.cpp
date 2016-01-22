@@ -67,6 +67,8 @@ enum ConnectInterface : uint8_t
 #define TX_ACK_OK 0x1
 #define TX_ACK_WAIT 0x2
 #define TX_ACK_FAULT 0x4
+#define TX_ACK_NO_ACK 0x7
+#define TX_ACK_MASK 0x7
 
 #define WCR_TO_TRN(wcr) ((uint32_t)(1 + (3 & ((wcr)) >> 8))) /* 1..4 clocks */
 #define WCR_TO_PRESCALE(wcr) ((uint32_t)(7 & ((wcr))))       /* impl defined */
@@ -800,9 +802,15 @@ int32_t CMSISDAP::dpapRead(bool dp, uint32_t reg, uint32_t *data)
 	if (ret != OK) {
 		return ret;
 	}
-	if ((packetBuf[2] & TX_ACK_FAULT) != 0) {
-		ret = CMSISDAP_ERR_ACKFAULT;
-		return ret;
+
+	switch (packetBuf[2] & TX_ACK_MASK)
+	{
+	case TX_ACK_NO_ACK:
+		return CMSISDAP_ERR_NO_ACK;
+	case TX_ACK_FAULT:
+		return CMSISDAP_ERR_ACKFAULT;
+	case TX_ACK_WAIT:
+		return CMSISDAP_ERR_ACKWAIT;
 	}
 
 	val = buf2LE32(&packetBuf[3]);
