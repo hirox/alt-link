@@ -210,12 +210,12 @@ int32_t ADIv5TI::unsetBreakPoint(BreakPointType type, uint64_t addr, BreakPointK
 
 int32_t ADIv5TI::setWatchPoint(WatchPointType type, uint64_t addr, uint32_t kind)
 {
-	return -1;	// not supported
+	return ERSP_NOT_SUPPORTED;	// not supported
 }
 
 int32_t ADIv5TI::unsetWatchPoint(WatchPointType type, uint64_t addr, uint32_t kind)
 {
-	return -1;	// not supported
+	return ERSP_NOT_SUPPORTED;	// not supported
 }
 
 errno_t ADIv5TI::readRegister(const uint32_t n, uint32_t* out)
@@ -385,7 +385,7 @@ errno_t ADIv5TI::writeMemory(uint64_t addr, uint32_t len, const std::vector<uint
 	if (!mem)
 		return ENODEV;
 
-	int32_t ret;
+	errno_t ret;
 	uint32_t i = 0;
 	for (; i < len / 4; i++)
 	{
@@ -399,6 +399,7 @@ errno_t ADIv5TI::writeMemory(uint64_t addr, uint32_t len, const std::vector<uint
 	len -= i * 4;
 	if (len > 0)
 	{
+#if 0
 		_DBGPRT("[WARNING] Unalighned write may cause unexpected result. 0x%08x 0x%08x\n", (uint32_t)addr, len);
 
 		uint32_t data;
@@ -413,6 +414,26 @@ errno_t ADIv5TI::writeMemory(uint64_t addr, uint32_t len, const std::vector<uint
 		ret = mem->write((uint32_t)addr, data);
 		if (ret != OK)
 			return ret;
+#else
+		uint32_t offset = 0;
+		if (len >= 2)
+		{
+			ret = mem->write((uint32_t)addr, (uint16_t)((array[i * 4 + 1] << 8) | array[i * 4]));
+			if (ret != OK)
+				return ret;
+			len -= 2;
+			offset += 2;
+			addr += 2;
+		}
+		if (len > 0)
+		{
+			ret = mem->write((uint32_t)addr, array[i * 4 + offset]);
+			if (ret != OK)
+				return ret;
+			len--;
+		}
+		ASSERT_RELEASE(len == 0);
+#endif
 	}
 	return OK;
 }

@@ -83,16 +83,34 @@ public:
 	class MEM_AP
 	{
 	public:
+		enum AccessSize
+		{
+			SIZE_8BIT	= 0,
+			SIZE_16BIT	= 1,
+			SIZE_32BIT	= 2,
+			SIZE_64BIT	= 3,
+			SIZE_128BIT	= 4,
+			SIZE_256BIT	= 5,
+			INVALID		= 0xFFFFFFFF
+		};
+
 		MEM_AP(uint32_t _index, AP& _ap) : index(_index), ap(_ap) {}
-		int32_t read(uint32_t addr, uint32_t *data);
-		int32_t write(uint32_t addr, uint32_t val);
+		errno_t read(uint32_t addr, uint32_t *data);
+		errno_t write(uint32_t addr, uint32_t val);
+		errno_t write(uint32_t addr, uint16_t val);
+		errno_t write(uint32_t addr, uint8_t val);
+		errno_t setAccessSize(AccessSize size);
 
 	private:
 		AP& ap;
 		uint32_t index;
 		uint32_t lastTAR = 0;
+		AccessSize lastAccessSize = INVALID;
 
-		bool isSameTAR(uint32_t addr, uint32_t* reg);
+		bool isSameTAR(uint32_t addr);
+		bool isSame32BitAlignedTAR(uint32_t addr, uint32_t* reg);
+		bool is32BitAligned(uint32_t addr);
+		bool is16BitAligned(uint32_t addr);
 	};
 
 	class Memory

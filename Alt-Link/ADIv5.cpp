@@ -106,7 +106,7 @@ union MEM_AP_CSW
 {
 	struct
 	{
-		uint32_t Size			: 3;
+		ADIv5::MEM_AP::AccessSize Size	: 3;
 		uint32_t Reseved0		: 1;
 		uint32_t AddrInc		: 2;
 		uint32_t DeviceEn		: 1;
@@ -129,7 +129,7 @@ union AHB_AP_CSW
 {
 	struct
 	{
-		uint32_t Size			: 3;
+		ADIv5::MEM_AP::AccessSize Size	: 3;
 		uint32_t Reseved0		: 1;
 		uint32_t AddrInc		: 2;
 		uint32_t DeviceEn		: 1;
@@ -310,12 +310,12 @@ void MEM_AP_CSW::print()
 		AddrInc == 1 ? "single" :
 		AddrInc == 2 ? "packed" : "UNKNOWN");
 	_DBGPRT("      Size            : %s\n",
-		Size == 0 ? "8bit" :
-		Size == 1 ? "16bit" :
-		Size == 2 ? "32bit" :
-		Size == 3 ? "64bit" :
-		Size == 4 ? "128bit" :
-		Size == 5 ? "256bit" : "UNKNOWN");
+		Size == ADIv5::MEM_AP::SIZE_8BIT ? "8bit" :
+		Size == ADIv5::MEM_AP::SIZE_16BIT ? "16bit" :
+		Size == ADIv5::MEM_AP::SIZE_32BIT ? "32bit" :
+		Size == ADIv5::MEM_AP::SIZE_64BIT ? "64bit" :
+		Size == ADIv5::MEM_AP::SIZE_128BIT ? "128bit" :
+		Size == ADIv5::MEM_AP::SIZE_256BIT ? "256bit" : "UNKNOWN");
 }
 
 void AHB_AP_CSW::print()
@@ -333,12 +333,12 @@ void AHB_AP_CSW::print()
 		AddrInc == 1 ? "single" :
 		AddrInc == 2 ? "packed" : "UNKNOWN");
 	_DBGPRT("      Size            : %s\n",
-		Size == 0 ? "8bit" :
-		Size == 1 ? "16bit" :
-		Size == 2 ? "32bit" :
-		Size == 3 ? "64bit" :
-		Size == 4 ? "128bit" :
-		Size == 5 ? "256bit" : "UNKNOWN");
+		Size == ADIv5::MEM_AP::SIZE_8BIT ? "8bit" :
+		Size == ADIv5::MEM_AP::SIZE_16BIT ? "16bit" :
+		Size == ADIv5::MEM_AP::SIZE_32BIT ? "32bit" :
+		Size == ADIv5::MEM_AP::SIZE_64BIT ? "64bit" :
+		Size == ADIv5::MEM_AP::SIZE_128BIT ? "128bit" :
+		Size == ADIv5::MEM_AP::SIZE_256BIT ? "256bit" : "UNKNOWN");
 }
 
 int32_t ADIv5::scanAPs()
@@ -571,7 +571,14 @@ int32_t ADIv5::AP::write(uint32_t ap, uint32_t reg, uint32_t data)
 	return ret;
 }
 
-bool ADIv5::MEM_AP::isSameTAR(uint32_t addr, uint32_t* reg)
+bool ADIv5::MEM_AP::isSameTAR(uint32_t addr)
+{
+	if (lastTAR == addr)
+		return true;
+	return false;
+}
+
+bool ADIv5::MEM_AP::isSame32BitAlignedTAR(uint32_t addr, uint32_t* reg)
 {
 	if (reg == nullptr)
 		return false;
@@ -591,19 +598,36 @@ bool ADIv5::MEM_AP::isSameTAR(uint32_t addr, uint32_t* reg)
 	return false;
 }
 
+bool ADIv5::MEM_AP::is32BitAligned(uint32_t addr)
+{
+	if ((addr & 0x3) == 0)
+		return true;
+	return false;
+}
+
+bool ADIv5::MEM_AP::is16BitAligned(uint32_t addr)
+{
+	if ((addr & 0x1) == 0)
+		return true;
+	return false;
+}
+
 int32_t ADIv5::MEM_AP::read(uint32_t addr, uint32_t *data)
 {
 	uint32_t reg;
-	if (isSameTAR(addr, &reg))
+	errno_t ret = setAccessSize(SIZE_32BIT);
+	if (ret != OK)
+		return ret;
+
+	if (is32BitAligned(lastTAR) && isSame32BitAlignedTAR(addr, &reg))
 	{
-		int ret = ap.read(index, reg, data);
-		if (ret != OK) {
+		ret = ap.read(index, reg, data);
+		if (ret != OK)
 			return ret;
-		}
 	}
 	else
 	{
-		int ret = ap.write(index, MEM_AP_REG_TAR, addr);
+		ret = ap.write(index, MEM_AP_REG_TAR, addr);
 		if (ret != OK) {
 			return ret;
 		}
@@ -620,12 +644,17 @@ int32_t ADIv5::MEM_AP::read(uint32_t addr, uint32_t *data)
 int32_t ADIv5::MEM_AP::write(uint32_t addr, uint32_t val)
 {
 	uint32_t reg;
-	if (isSameTAR(addr, &reg))
+	ASSERT_RELEASE(is32BitAligned(addr));
+
+	errno_t ret = setAccessSize(SIZE_32BIT);
+	if (ret != OK)
+		return ret;
+
+	if (is32BitAligned(lastTAR) && isSame32BitAlignedTAR(addr, &reg))
 	{
-		int ret = ap.write(index, reg, val);
-		if (ret != OK) {
+		ret = ap.write(index, reg, val);
+		if (ret != OK)
 			return ret;
-		}
 	}
 	else
 	{
@@ -633,10 +662,80 @@ int32_t ADIv5::MEM_AP::write(uint32_t addr, uint32_t val)
 		if (ret != OK) {
 			return ret;
 		}
+		lastTAR = addr;
 
 		ret = ap.write(index, MEM_AP_REG_DRW, val);
 		if (ret != OK) {
 			return ret;
+		}
+	}
+	return OK;
+}
+
+int32_t ADIv5::MEM_AP::write(uint32_t addr, uint16_t val)
+{
+	ASSERT_RELEASE(is16BitAligned(addr));
+
+	errno_t ret = setAccessSize(SIZE_16BIT);
+	if (ret != OK)
+		return ret;
+
+	if (!isSameTAR(addr))
+	{
+		ret = ap.write(index, MEM_AP_REG_TAR, addr);
+		if (ret != OK) {
+			return ret;
+		}
+		lastTAR = addr;
+	}
+
+	ret = ap.write(index, MEM_AP_REG_DRW, (addr & 2) ? ((uint32_t)val) << 16 : val);
+	if (ret != OK)
+		return ret;
+
+	return OK;
+}
+
+int32_t ADIv5::MEM_AP::write(uint32_t addr, uint8_t val)
+{
+	errno_t ret = setAccessSize(SIZE_8BIT);
+	if (ret != OK)
+		return ret;
+
+	if (!isSameTAR(addr))
+	{
+		ret = ap.write(index, MEM_AP_REG_TAR, addr);
+		if (ret != OK) {
+			return ret;
+		}
+		lastTAR = addr;
+	}
+
+	ret = ap.write(index, MEM_AP_REG_DRW,
+		(addr & 3) == 3 ? ((uint32_t)val) << 24 :
+		(addr & 3) == 2 ? ((uint32_t)val) << 16 :
+		(addr & 3) == 1 ? ((uint32_t)val) <<  8 : val );
+	if (ret != OK)
+		return ret;
+
+	return OK;
+}
+errno_t ADIv5::MEM_AP::setAccessSize(ADIv5::MEM_AP::AccessSize size)
+{
+	if (size != lastAccessSize)
+	{
+		MEM_AP_CSW csw;
+		errno_t ret = ap.read(index, MEM_AP_REG_CSW, &csw.raw);
+		if (ret != OK)
+			return ret;
+
+		if (size != csw.Size)
+		{
+			csw.Size = size;
+			ret = ap.write(index, MEM_AP_REG_CSW, csw.raw);
+			if (ret != OK)
+				return ret;
+			lastAccessSize = csw.Size;
 		}
 	}
 	return OK;
