@@ -9,6 +9,8 @@
 /*
  * based on CMSIS-DAP Beta 0.01.
  * https://silver.arm.com/browse/CMSISDAP
+ * Version 1.1.0
+ * http://www.keil.com/pack/doc/cmsis/DAP/html/index.html
  *
  * CoreSight Components Technical Reference Manual
  * http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.ddi0432cj/Bcgbfdhc.html
@@ -55,13 +57,26 @@ enum ConnectInterface : uint8_t
 #define AP_ABORT_WD_ERR_CLR 0x08   /* clear WDATAERR write data error flag */
 #define AP_ABORT_ORUN_ERR_CLR 0x10 /* clear STICKYORUN overrun error flag */
 
-#define CMSIS_CMD_DP (0 << 0)         /* set only for AP access */
-#define CMSIS_CMD_AP (1 << 0)         /* set only for AP access */
-#define CMSIS_CMD_READ (1 << 1)       /* set only for read access */
-#define CMSIS_CMD_WRITE (0 << 1)      /* set only for read access */
-#define CMSIS_CMD_A32(n) ((n) & 0x0C) /* bits A[3:2] of register addr */
-#define CMSIS_CMD_VAL_MATCH (1 << 4)  /* Value Match */
-#define CMSIS_CMD_MATCH_MSK (1 << 5)  /* Match Mask */
+union TransferRequest
+{
+	struct
+	{
+		uint32_t APnDP		: 1;	// 0 = DP, 1 = AP
+		uint32_t RnW		: 1;	// 0 = Write, 1 = Read
+		uint32_t A32		: 2;
+		uint32_t ValueMatch	: 1;
+		uint32_t MatchMask	: 1;
+		uint32_t Reserved	: 2;
+	};
+	uint8_t raw;
+
+	void setAP() { APnDP = 1; }
+	void setDP() { APnDP = 0; }
+	void setRead() { RnW = 1; }
+	void setWrite() { RnW = 0; }
+	void setRegister(uint32_t reg) { A32 = (reg & 0xC) >> 2; }
+};
+static_assert(CONFIRM_SIZE(TransferRequest, sizeof(uint8_t)));
 
 /* three-bit ACK values for SWD access (sent LSB first) */
 #define TX_ACK_OK 0x1
@@ -792,12 +807,20 @@ int32_t CMSISDAP::dpapRead(bool dp, uint32_t reg, uint32_t *data)
 	int ret;
 	uint32_t val;
 	uint32_t idx = 0;
+	TransferRequest req = { 0 };
+
+	req.setRead();
+	if (dp)
+		req.setDP();
+	else
+		req.setAP();
+	req.setRegister(reg);
 
 	packetBuf[idx++] = _USB_HID_REPORT_NUM;
 	packetBuf[idx++] = CMD_TX;
 	packetBuf[idx++] = 0x00; /* DAP Index, ignored in the swd. */
 	packetBuf[idx++] = 0x01; /* Tx count */
-	packetBuf[idx++] = (dp ? CMSIS_CMD_DP : CMSIS_CMD_AP) | CMSIS_CMD_READ | CMSIS_CMD_A32(reg);
+	packetBuf[idx++] = req.raw;
 	ret = usbTx(idx);
 	if (ret != OK) {
 		return ret;
@@ -826,12 +849,20 @@ int32_t CMSISDAP::dpapWrite(bool dp, uint32_t reg, uint32_t data)
 {
 	int ret;
 	uint32_t idx = 0;
+	TransferRequest req = { 0 };
+
+	req.setWrite();
+	if (dp)
+		req.setDP();
+	else
+		req.setAP();
+	req.setRegister(reg);
 
 	packetBuf[idx++] = _USB_HID_REPORT_NUM; /* report number */
 	packetBuf[idx++] = CMD_TX;
 	packetBuf[idx++] = 0x00;
 	packetBuf[idx++] = 0x01;
-	packetBuf[idx++] = (dp ? CMSIS_CMD_DP : CMSIS_CMD_AP) | CMSIS_CMD_WRITE | CMSIS_CMD_A32(reg);
+	packetBuf[idx++] = req.raw;
 	packetBuf[idx++] = (data)& 0xff;
 	packetBuf[idx++] = (data >> 8) & 0xff;
 	packetBuf[idx++] = (data >> 16) & 0xff;
