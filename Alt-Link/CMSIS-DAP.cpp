@@ -95,7 +95,7 @@ int32_t CMSISDAP::usbOpen(void)
 	uint16_t usbVID = 0;
 	uint16_t usbPID = 0;
 
-	packetBufSize = _CMSISDAP_DEFAULT_PACKET_SIZE;
+	packetMaxSize = _CMSISDAP_DEFAULT_PACKET_SIZE;
 	infoCur = info = hid_enumerate(0x0, 0x0);
 	while (NULL != infoCur) {
 #if 0
@@ -138,11 +138,11 @@ int32_t CMSISDAP::usbOpen(void)
 		return CMSISDAP_ERR_USBHID_OPEN;
 	}
 
-	packetBufSize = packetBufSize;
+	packetMaxSize = packetMaxSize;
 	vid = usbVID;
 	pid = usbPID;
 
-	packetBuf = (uint8_t *)malloc(packetBufSize);
+	packetBuf = (uint8_t *)malloc(packetMaxSize);
 	if (packetBuf == NULL)
 	{
 		return CMSISDAP_ERR_NO_MEMORY;
@@ -168,22 +168,22 @@ int32_t CMSISDAP::usbTx(uint32_t txlen)
 	uint8_t *buf = packetBuf;
 #endif /* USE_USB_TX_DBG */
 
-	if (packetBufSize - 1u < txlen) {
+	if (packetMaxSize - 1u < txlen) {
 		return CMSISDAP_ERR_INVALID_TX_LEN;
 	}
 
-	memset(packetBuf + txlen, 0, packetBufSize - 1 - txlen);
+	memset(packetBuf + txlen, 0, packetMaxSize - 1 - txlen);
 
 #if USE_USB_TX_DBG
 	_DBGPRT("A %02x %02x %02x %02x %02x %02x %02x %02x\n",
 		buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7], buf[8]);
 #endif /* USE_USB_TX_DBG */
-	ret = hid_write(hidHandle, packetBuf, packetBufSize);
+	ret = hid_write(hidHandle, packetBuf, packetMaxSize);
 	if (ret == -1) {
 		return CMSISDAP_ERR_USBHID_WRITE;
 	}
 
-	ret = hid_read_timeout(hidHandle, packetBuf, packetBufSize, _CMSISDAP_USB_TIMEOUT);
+	ret = hid_read_timeout(hidHandle, packetBuf, packetMaxSize, _CMSISDAP_USB_TIMEOUT);
 	if (ret == -1 || ret == 0) {
 		return CMSISDAP_ERR_USBHID_TIMEOUT;
 	}
@@ -195,42 +195,91 @@ int32_t CMSISDAP::usbTx(uint32_t txlen)
 	return OK;
 }
 
-int32_t CMSISDAP::cmdInfoCapabilities(void)
+int32_t CMSISDAP::usbTx(const TxPacket& packet)
 {
-	int ret;
-	uint32_t idx = 0;
-
-	packetBuf[idx++] = _USB_HID_REPORT_NUM;
-	packetBuf[idx++] = CMD_INFO;
-	packetBuf[idx++] = INFO_ID_CAPABILITIES;
-	ret = usbTx(idx);
-	if (ret != OK) {
-		_DBGPRT("err ret=%08x %s %s %d\n", ret, __FUNCTION__, __FILE__, __LINE__);
-		return ret;
-	}
-
-	if (packetBuf[1] != 1) {
-		return CMSISDAP_ERR_DAP_RES;
-	}
-
-	caps.raw = packetBuf[2];
+	int ret = hid_write(hidHandle, packet.data(), packet.length());
+	if (ret == -1)
+		return CMSISDAP_ERR_USBHID_WRITE;
 
 	return OK;
 }
 
-int32_t CMSISDAP::cmdLed(LED led, bool on)
+int32_t CMSISDAP::usbRx(RxPacket* rx)
+{
+	if (rx == nullptr)
+		return CMSISDAP_ERR_INVALID_ARGUMENT;
+
+	int ret = hid_read_timeout(hidHandle, rx->data(), rx->length(), _CMSISDAP_USB_TIMEOUT);
+	if (ret == -1 || ret == 0)
+		return CMSISDAP_ERR_USBHID_TIMEOUT;
+
+	rx->length(ret);
+	return OK;
+}
+
+int32_t CMSISDAP::usbTxRx(const TxPacket& tx, RxPacket* rx)
 {
 	int ret;
-	uint32_t idx = 0;
-	packetBuf[idx++] = _USB_HID_REPORT_NUM;
-	packetBuf[idx++] = CMD_LED;
-	packetBuf[idx++] = led;
-	packetBuf[idx++] = on ? 1 : 0;
-	ret = usbTx(idx);
+	ret = usbTx(tx);
+	if (ret != OK)
+		return ret;
+
+	return usbRx(rx);
+}
+
+int32_t CMSISDAP::TxPacket::write(uint8_t value)
+{
+	if (sizeof(_data) <= written)
+		return CMSISDAP_ERR_NO_MEMORY;
+
+	_data[written++] = value;
+
+	return OK;
+}
+
+int32_t CMSISDAP::TxPacket::write16(uint16_t value)
+{
+	int32_t ret;
+	ret = write(value & 0xFF);
+	if (ret != OK)
+		return ret;
+
+	return write((value >> 8) & 0xFF);
+}
+
+int32_t CMSISDAP::TxPacket::write32(uint32_t value)
+{
+	int32_t ret;
+	ret = write(value & 0xFF);
+	if (ret != OK)
+		return ret;
+
+	ret = write((value >> 8) & 0xFF);
+	if (ret != OK)
+		return ret;
+
+	ret = write((value >> 16) & 0xFF);
+	if (ret != OK)
+		return ret;
+
+	return write((value >> 24) & 0xFF);
+}
+
+int32_t CMSISDAP::cmdLed(LED led, bool on)
+{
+	TxPacket tx;
+	tx.write(_USB_HID_REPORT_NUM);
+	tx.write(CMD_LED);
+	tx.write(led);
+	tx.write(on ? 1 : 0);
+
+	RxPacket rx;
+	int ret = usbTxRx(tx, &rx);
 	if (ret != OK) {
 		_DBGPRT("err ret=%08x %s %s %d\n", ret, __FUNCTION__, __FILE__, __LINE__);
 	}
-	if (packetBuf[1] != _DAP_RES_OK) {
+	uint8_t* data = rx.data();
+	if (data[1] != _DAP_RES_OK) {
 		ret = CMSISDAP_ERR_DAP_RES;
 		_DBGPRT("err ret=%08x %s %s %d\n", ret, __FUNCTION__, __FILE__, __LINE__);
 	}
@@ -240,19 +289,19 @@ int32_t CMSISDAP::cmdLed(LED led, bool on)
 
 int32_t CMSISDAP::cmdConnect(void)
 {
-	int ret;
-	uint32_t idx = 0;
+	TxPacket tx;
+	tx.write(_USB_HID_REPORT_NUM);
+	tx.write(CMD_CONNECT);
+	tx.write(SWD);
 
-	packetBuf[idx++] = _USB_HID_REPORT_NUM;
-	packetBuf[idx++] = CMD_CONNECT;
-	packetBuf[idx++] = SWD;
-	ret = usbTx(idx);
+	RxPacket rx;
+	int ret = usbTxRx(tx, &rx);
 	if (ret != OK) {
 		_DBGPRT("err ret=%08x %s %s %d\n", ret, __FUNCTION__, __FILE__, __LINE__);
 		return ret;
 	}
-
-	if (packetBuf[1] != SWD) {
+	uint8_t* data = rx.data();
+	if (data[1] != SWD) {
 		return CMSISDAP_ERR_FATAL;
 	}
 
@@ -261,18 +310,19 @@ int32_t CMSISDAP::cmdConnect(void)
 
 int32_t CMSISDAP::cmdDisconnect(void)
 {
-	int ret;
-	uint32_t idx = 0;
+	TxPacket tx;
+	tx.write(_USB_HID_REPORT_NUM);
+	tx.write(CMD_DISCONNECT);
 
-	packetBuf[idx++] = _USB_HID_REPORT_NUM;
-	packetBuf[idx++] = CMD_DISCONNECT;
-	ret = usbTx(idx);
+	RxPacket rx;
+	int ret = usbTxRx(tx, &rx);
 	if (ret != OK)
 	{
 		_DBGPRT("err ret=%08x %s %s %d\n", ret, __FUNCTION__, __FILE__, __LINE__);
 		return ret;
 	}
-	if (packetBuf[1] != _DAP_RES_OK)
+	uint8_t* data = rx.data();
+	if (data[1] != _DAP_RES_OK)
 	{
 		ret = CMSISDAP_ERR_DAP_RES;
 		_DBGPRT("err ret=%08x %s %s %d\n", ret, __FUNCTION__, __FILE__, __LINE__);
@@ -283,23 +333,22 @@ int32_t CMSISDAP::cmdDisconnect(void)
 
 int32_t CMSISDAP::cmdTxConf(uint8_t idle, uint16_t delay, uint16_t retry)
 {
-	int ret;
-	uint32_t idx = 0;
+	TxPacket tx;
+	tx.write(_USB_HID_REPORT_NUM);
+	tx.write(CMD_TX_CONF);
+	tx.write(idle);
+	tx.write16(delay);
+	tx.write16(retry);
 
-	packetBuf[idx++] = _USB_HID_REPORT_NUM;
-	packetBuf[idx++] = CMD_TX_CONF;
-	packetBuf[idx++] = idle;
-	packetBuf[idx++] = delay & 0xff;
-	packetBuf[idx++] = (delay >> 8) & 0xff;
-	packetBuf[idx++] = retry & 0xff;
-	packetBuf[idx++] = (retry >> 8) & 0xff;
-	ret = usbTx(idx);
+	RxPacket rx;
+	int ret = usbTxRx(tx, &rx);
 	if (ret != OK)
 	{
 		_DBGPRT("err ret=%08x %s %s %d\n", ret, __FUNCTION__, __FILE__, __LINE__);
 		return ret;
 	}
-	if (packetBuf[1] != _DAP_RES_OK)
+	uint8_t* data = rx.data();
+	if (data[1] != _DAP_RES_OK)
 	{
 		ret = CMSISDAP_ERR_DAP_RES;
 		_DBGPRT("err ret=%08x %s %s %d\n", ret, __FUNCTION__, __FILE__, __LINE__);
@@ -308,46 +357,69 @@ int32_t CMSISDAP::cmdTxConf(uint8_t idle, uint16_t delay, uint16_t retry)
 	return ret;
 }
 
-int32_t CMSISDAP::cmdInfoFwVer(void)
+int32_t CMSISDAP::getInfo(uint32_t type, RxPacket* rx)
 {
 	int ret;
-	uint32_t idx = 0;
+	TxPacket packet;
 
-	packetBuf[idx++] = _USB_HID_REPORT_NUM;
-	packetBuf[idx++] = CMD_INFO;
-	packetBuf[idx++] = INFO_ID_FW_VER;
-	ret = usbTx(idx);
+	if (rx == nullptr)
+		return CMSISDAP_ERR_INVALID_ARGUMENT;
+
+	packet.write(_USB_HID_REPORT_NUM);
+	packet.write(CMD_INFO);
+	packet.write(type);
+
+	ret = usbTxRx(packet, rx);
 	if (ret != OK) {
 		_DBGPRT("err ret=%08x %s %s %d\n", ret, __FUNCTION__, __FILE__, __LINE__);
 		return ret;
 	}
 
-	if (packetBuf[1] > 0) {
-		fwver = std::string((const char *)&(packetBuf[2]));
-	} else {
+	return OK;
+}
+
+int32_t CMSISDAP::cmdInfoCapabilities(void)
+{
+	RxPacket packet;
+	int ret = getInfo(INFO_ID_CAPABILITIES, &packet);
+	if (ret != OK)
+		return ret;
+
+	uint8_t* data = packet.data();
+	if (data[1] != 1)
+		return CMSISDAP_ERR_DAP_RES;
+
+	caps.raw = data[2];
+	return OK;
+}
+
+int32_t CMSISDAP::cmdInfoFwVer(void)
+{
+	RxPacket packet;
+	int ret = getInfo(INFO_ID_FW_VER, &packet);
+	if (ret != OK)
+		return ret;
+
+	uint8_t* data = packet.data();
+	if (data[1] > 0)
+		fwver = std::string((const char *)&(data[2]));
+	else
 		fwver = "";
-	}
 
 	return OK;
 }
 
 int32_t CMSISDAP::cmdInfoVendor(void)
 {
-	int ret;
-	uint32_t idx = 0;
-
-	packetBuf[idx++] = _USB_HID_REPORT_NUM;
-	packetBuf[idx++] = CMD_INFO;
-	packetBuf[idx++] = INFO_ID_TD_VEND;
-	ret = usbTx(idx);
-	if (ret != OK) {
-		_DBGPRT("err ret=%08x %s %s %d\n", ret, __FUNCTION__, __FILE__, __LINE__);
+	RxPacket packet;
+	int ret = getInfo(INFO_ID_TD_VEND, &packet);
+	if (ret != OK)
 		return ret;
-	}
 
-	if (packetBuf[1] > 0)
-		vendor = std::string((const char *)&(packetBuf[2]));
-   	else
+	uint8_t* data = packet.data();
+	if (data[1] > 0)
+		vendor = std::string((const char *)&(data[2]));
+	else
 		vendor = "";
 
 	return OK;
@@ -355,20 +427,14 @@ int32_t CMSISDAP::cmdInfoVendor(void)
 
 int32_t CMSISDAP::cmdInfoName(void)
 {
-	int ret;
-	uint32_t idx = 0;
-
-	packetBuf[idx++] = _USB_HID_REPORT_NUM;
-	packetBuf[idx++] = CMD_INFO;
-	packetBuf[idx++] = INFO_ID_TD_NAME;
-	ret = usbTx(idx);
-	if (ret != OK) {
-		_DBGPRT("err ret=%08x %s %s %d\n", ret, __FUNCTION__, __FILE__, __LINE__);
+	RxPacket packet;
+	int ret = getInfo(INFO_ID_TD_NAME, &packet);
+	if (ret != OK)
 		return ret;
-	}
 
-	if (packetBuf[1] > 0)
-		name = std::string((const char *)&(packetBuf[2]));
+	uint8_t* data = packet.data();
+	if (data[1] > 0)
+		name = std::string((const char *)&(data[2]));
 	else
 		name = "";
 
@@ -377,61 +443,41 @@ int32_t CMSISDAP::cmdInfoName(void)
 
 int32_t CMSISDAP::cmdInfoPacketSize(void)
 {
-	int ret;
-	uint16_t size;
-	uint32_t idx = 0;
-
-	packetBuf[idx++] = _USB_HID_REPORT_NUM;
-	packetBuf[idx++] = CMD_INFO;
-	packetBuf[idx++] = INFO_ID_PKT_SZ;
-	ret = usbTx(idx);
-	if (ret != OK) {
-		_DBGPRT("err ret=%08x %s %s %d\n", ret, __FUNCTION__, __FILE__, __LINE__);
+	RxPacket packet;
+	int ret = getInfo(INFO_ID_PKT_SZ, &packet);
+	if (ret != OK)
 		return ret;
-	}
 
-	if (packetBuf[1] != 2) {
+	uint8_t* data = packet.data();
+	if (data[1] != 2) {
 		ret = CMSISDAP_ERR_DAP_RES;
 		_DBGPRT("err ret=%08x %s %s %d\n", ret, __FUNCTION__, __FILE__, __LINE__);
 		return ret;
 	}
-	size = packetBuf[2] + (packetBuf[3] << 8);
+	uint16_t size = data[2] + (data[3] << 8);
 
-	if (packetBufSize != size + 1) {
-		// 現在のバッファサイズと異なる場合、realloc
-		uint8_t *tmp;
-		/* reallocate buffer */
-		packetBufSize = size + 1;
-		tmp = (uint8_t*)realloc(packetBuf, packetBufSize);
-		if (tmp == NULL) {
-			free(packetBuf);
-			return CMSISDAP_ERR_NO_MEMORY;
-		}
-		packetBuf = tmp;
-	}
+	// [TODO] packetMaxSize に対応
+	if (packetMaxSize != size + 1)
+		packetMaxSize = size + 1;
+
 	return OK;
 }
 
 int32_t CMSISDAP::cmdInfoPacketCount(void)
 {
-	int ret;
-	uint32_t idx = 0;
-
-	packetBuf[idx++] = _USB_HID_REPORT_NUM;
-	packetBuf[idx++] = CMD_INFO;
-	packetBuf[idx++] = INFO_ID_PKT_CNT;
-	ret = usbTx(idx);
-	if (ret != OK) {
-		_DBGPRT("err ret=%08x %s %s %d\n", ret, __FUNCTION__, __FILE__, __LINE__);
+	RxPacket packet;
+	int ret = getInfo(INFO_ID_PKT_CNT, &packet);
+	if (ret != OK)
 		return ret;
-	}
 
-	if (packetBuf[1] != 1) { /* resは1byte */
+	uint8_t* data = packet.data();
+	if (data[1] != 1) { /* resは1byte */
 		ret = CMSISDAP_ERR_DAP_RES;
 		_DBGPRT("err ret=%08x %s %s %d\n", ret, __FUNCTION__, __FILE__, __LINE__);
 		return ret;
 	}
-	packetMaxCount = packetBuf[2];
+	// [TODO] packetMaxCount に対応
+	packetMaxCount = data[2];
 	return OK;
 }
 
@@ -454,73 +500,77 @@ int32_t CMSISDAP::getStatus(void)
 
 int32_t CMSISDAP::jtagToSwd(void)
 {
-	int ret;
-	uint32_t idx = 0;
+	TxPacket tx;
+	tx.write(_USB_HID_REPORT_NUM);
+	tx.write(CMD_SWJ_SEQ);
+	tx.write(7 * 8);
+	tx.write32(0xFFFFFFFF);
+	tx.write16(0xFFFF);
+	tx.write(0xFF);
 
-	packetBuf[idx++] = _USB_HID_REPORT_NUM;
-	packetBuf[idx++] = CMD_SWJ_SEQ;
-	packetBuf[idx++] = 7 * 8;
-	packetBuf[idx++] = 0xff;
-	packetBuf[idx++] = 0xff;
-	packetBuf[idx++] = 0xff;
-	packetBuf[idx++] = 0xff;
-	packetBuf[idx++] = 0xff;
-	packetBuf[idx++] = 0xff;
-	packetBuf[idx++] = 0xff;
-	ret = usbTx(idx);
+	RxPacket rx;
+	int ret = usbTxRx(tx, &rx);
 	if (ret != OK) {
 		_DBGPRT("err ret=%08x %s %s %d\n", ret, __FUNCTION__, __FILE__, __LINE__);
 		return ret;
 	}
+	if (rx.data()[1] != _DAP_RES_OK)
+		return CMSISDAP_ERR_DAP_RES;
 
-	idx = 0;
-	packetBuf[idx++] = _USB_HID_REPORT_NUM;
-	packetBuf[idx++] = CMD_SWJ_SEQ;
-	packetBuf[idx++] = 2 * 8;
-	packetBuf[idx++] = 0x9e;
-	packetBuf[idx++] = 0xe7;
-	ret = usbTx(idx);
-	if (ret != OK) {
-		_DBGPRT("err ret=%08x %s %s %d\n", ret, __FUNCTION__, __FILE__, __LINE__);
-	}
 
-	idx = 0;
-	packetBuf[idx++] = _USB_HID_REPORT_NUM;
-	packetBuf[idx++] = CMD_SWJ_SEQ;
-	packetBuf[idx++] = 7 * 8;
-	packetBuf[idx++] = 0xff;
-	packetBuf[idx++] = 0xff;
-	packetBuf[idx++] = 0xff;
-	packetBuf[idx++] = 0xff;
-	packetBuf[idx++] = 0xff;
-	packetBuf[idx++] = 0xff;
-	packetBuf[idx++] = 0xff;
-	ret = usbTx(idx);
+	tx.clear();
+	tx.write(_USB_HID_REPORT_NUM);
+	tx.write(CMD_SWJ_SEQ);
+	tx.write(2 * 8);
+	tx.write(0x9E);
+	tx.write(0xE7);
+
+	ret = usbTxRx(tx, &rx);
 	if (ret != OK) {
 		_DBGPRT("err ret=%08x %s %s %d\n", ret, __FUNCTION__, __FILE__, __LINE__);
 		return ret;
 	}
+	if (rx.data()[1] != _DAP_RES_OK)
+		return CMSISDAP_ERR_DAP_RES;
+
+
+	tx.clear();
+	tx.write(_USB_HID_REPORT_NUM);
+	tx.write(CMD_SWJ_SEQ);
+	tx.write(7 * 8);
+	tx.write32(0xFFFFFFFF);
+	tx.write16(0xFFFF);
+	tx.write(0xFF);
+
+	ret = usbTxRx(tx, &rx);
+	if (ret != OK) {
+		_DBGPRT("err ret=%08x %s %s %d\n", ret, __FUNCTION__, __FILE__, __LINE__);
+		return ret;
+	}
+	if (rx.data()[1] != _DAP_RES_OK)
+		return CMSISDAP_ERR_DAP_RES;
+
 
 	/* 8 cycle idle period */
-	idx = 0;
-	packetBuf[idx++] = _USB_HID_REPORT_NUM;
-	packetBuf[idx++] = CMD_SWJ_SEQ;
-	packetBuf[idx++] = 8;
-	packetBuf[idx++] = 0x00;
-	ret = usbTx(idx);
+	tx.clear();
+	tx.write(_USB_HID_REPORT_NUM);
+	tx.write(CMD_SWJ_SEQ);
+	tx.write(8);
+	tx.write(0);
+
+	ret = usbTxRx(tx, &rx);
 	if (ret != OK) {
 		_DBGPRT("err ret=%08x %s %s %d\n", ret, __FUNCTION__, __FILE__, __LINE__);
 		return ret;
 	}
+	if (rx.data()[1] != _DAP_RES_OK)
+		return CMSISDAP_ERR_DAP_RES;
 
-	return ret;
+	return OK;
 }
 
 int32_t CMSISDAP::resetLink(void)
 {
-	int ret;
-	uint32_t idx = 0;
-
 #if 0
 	/* アダプタにターゲットに応じたリセット方法が書かれている場合に発動させる */
 	packetBuf[idx++] = _USB_HID_REPORT_NUM;
@@ -533,20 +583,22 @@ int32_t CMSISDAP::resetLink(void)
 	_DBGPRT("Target Reset Res: Status:%02x Execute:%s\n", packetBuf[1], packetBuf[2] == 0x1 ? "OK" : "no impl");
 #endif
 
-	idx = 0;
-	packetBuf[idx++] = _USB_HID_REPORT_NUM;
-	packetBuf[idx++] = CMD_WRITE_ABORT;
-	packetBuf[idx++] = 0x00; /* DAP Index, ignored in the swd. */
-	packetBuf[idx++] = AP_ABORT_STK_CMP_CLR | AP_ABORT_WD_ERR_CLR | AP_ABORT_ORUN_ERR_CLR | AP_ABORT_STK_ERR_CLR;
-	packetBuf[idx++] = 0x00; /* SBZ */
-	packetBuf[idx++] = 0x00; /* SBZ */
-	packetBuf[idx++] = 0x00; /* SBZ */
-	ret = usbTx(idx);
+	TxPacket tx;
+	tx.write(_USB_HID_REPORT_NUM);
+	tx.write(CMD_WRITE_ABORT);
+	tx.write(0x00); /* DAP Index, ignored in the swd. */
+	tx.write(AP_ABORT_STK_CMP_CLR | AP_ABORT_WD_ERR_CLR | AP_ABORT_ORUN_ERR_CLR | AP_ABORT_STK_ERR_CLR);
+	tx.write(0x00); /* SBZ */
+	tx.write(0x00); /* SBZ */
+	tx.write(0x00); /* SBZ */
+
+	RxPacket rx;
+	int ret = usbTxRx(tx, &rx);
 	if (ret != OK) {
 		_DBGPRT("err ret=%08x %s %s %d\n", ret, __FUNCTION__, __FILE__, __LINE__);
 	}
 
-	if (packetBuf[1] != _DAP_RES_OK) {
+	if (rx.data()[1] != _DAP_RES_OK) {
 		ret = CMSISDAP_ERR_DAP_RES;
 		_DBGPRT("err ret=%08x %s %s %d\n", ret, __FUNCTION__, __FILE__, __LINE__);
 	}
@@ -556,17 +608,15 @@ int32_t CMSISDAP::resetLink(void)
 
 int32_t CMSISDAP::cmdSwjPins(uint8_t isLevelHigh, uint8_t pin, uint32_t delay, uint8_t *input)
 {
-	int ret;
-	uint32_t idx = 0;
-	packetBuf[idx++] = _USB_HID_REPORT_NUM;
-	packetBuf[idx++] = CMD_SWJ_PINS;
-	packetBuf[idx++] = !!(isLevelHigh);
-	packetBuf[idx++] = pin;
-	packetBuf[idx++] = delay & 0xff;
-	packetBuf[idx++] = (delay >> 8) & 0xff;
-	packetBuf[idx++] = (delay >> 16) & 0xff;
-	packetBuf[idx++] = (delay >> 24) & 0xff;
-	ret = usbTx(idx);
+	TxPacket tx;
+	tx.write(_USB_HID_REPORT_NUM);
+	tx.write(CMD_SWJ_PINS);
+	tx.write(!!(isLevelHigh));
+	tx.write(pin);
+	tx.write32(delay);
+
+	RxPacket rx;
+	int ret = usbTxRx(tx, &rx);
 	if (ret != OK)
 	{
 		_DBGPRT("err ret=%08x %s %s %d\n", ret, __FUNCTION__, __FILE__, __LINE__);
@@ -574,7 +624,7 @@ int32_t CMSISDAP::cmdSwjPins(uint8_t isLevelHigh, uint8_t pin, uint32_t delay, u
 	}
 	if (input != NULL)
 	{
-		*input = packetBuf[1];
+		*input = rx.data()[1];
 	}
 
 	return ret;
@@ -582,22 +632,19 @@ int32_t CMSISDAP::cmdSwjPins(uint8_t isLevelHigh, uint8_t pin, uint32_t delay, u
 
 int32_t CMSISDAP::cmdSwjClock(uint32_t clock)
 {
-	int ret;
-	uint32_t idx = 0;
+	TxPacket tx;
+	tx.write(_USB_HID_REPORT_NUM);
+	tx.write(CMD_SWJ_CLOCK);
+	tx.write32(clock);
 
-	packetBuf[idx++] = _USB_HID_REPORT_NUM;
-	packetBuf[idx++] = CMD_SWJ_CLOCK;
-	packetBuf[idx++] = clock & 0xff;
-	packetBuf[idx++] = (clock >> 8) & 0xff;
-	packetBuf[idx++] = (clock >> 16) & 0xff;
-	packetBuf[idx++] = (clock >> 24) & 0xff;
-	ret = usbTx(idx);
+	RxPacket rx;
+	int ret = usbTxRx(tx, &rx);
 	if (ret != OK)
 	{
 		_DBGPRT("err ret=%08x %s %s %d\n", ret, __FUNCTION__, __FILE__, __LINE__);
 		return ret;
 	}
-	if (packetBuf[1] != _DAP_RES_OK)
+	if (rx.data()[1] != _DAP_RES_OK)
 	{
 		ret = CMSISDAP_ERR_DAP_RES;
 		_DBGPRT("err ret=%08x %s %s %d\n", ret, __FUNCTION__, __FILE__, __LINE__);
@@ -608,19 +655,19 @@ int32_t CMSISDAP::cmdSwjClock(uint32_t clock)
 
 int32_t CMSISDAP::cmdSwdConf(uint8_t cfg)
 {
-	int ret;
-	uint32_t idx = 0;
+	TxPacket tx;
+	tx.write(_USB_HID_REPORT_NUM);
+	tx.write(CMD_SWD_CONF);
+	tx.write32(cfg);
 
-	packetBuf[idx++] = _USB_HID_REPORT_NUM;
-	packetBuf[idx++] = CMD_SWD_CONF;
-	packetBuf[idx++] = cfg;
-	ret = usbTx(idx);
+	RxPacket rx;
+	int ret = usbTxRx(tx, &rx);
 	if (ret != OK)
 	{
 		_DBGPRT("err ret=%08x %s %s %d\n", ret, __FUNCTION__, __FILE__, __LINE__);
 		return ret;
 	}
-	if (packetBuf[1] != _DAP_RES_OK)
+	if (rx.data()[1] != _DAP_RES_OK)
 	{
 		ret = CMSISDAP_ERR_DAP_RES;
 		_DBGPRT("err ret=%08x %s %s %d\n", ret, __FUNCTION__, __FILE__, __LINE__);
@@ -722,7 +769,7 @@ int32_t CMSISDAP::initialize(void)
 
 	_DBGPRT("Init OK.\n");
 	_DBGPRT("  F/W Version : %s\n", fwver == "" ? "none" : fwver.c_str());
-	_DBGPRT("  Packet Size : %u\n", packetBufSize);
+	_DBGPRT("  Packet Size : %u\n", packetMaxSize);
 	_DBGPRT("  Packet Cnt  : %u\n", packetMaxCount);
 	_DBGPRT("  Capabilities: %s (0x%08x)\n",
 		caps.SWD && caps.JTAG ? "JTAG/SWD" :
@@ -804,9 +851,6 @@ int32_t CMSISDAP::apWrite(uint32_t reg, uint32_t val)
 
 int32_t CMSISDAP::dpapRead(bool dp, uint32_t reg, uint32_t *data)
 {
-	int ret;
-	uint32_t val;
-	uint32_t idx = 0;
 	TransferRequest req = { 0 };
 
 	req.setRead();
@@ -816,17 +860,20 @@ int32_t CMSISDAP::dpapRead(bool dp, uint32_t reg, uint32_t *data)
 		req.setAP();
 	req.setRegister(reg);
 
-	packetBuf[idx++] = _USB_HID_REPORT_NUM;
-	packetBuf[idx++] = CMD_TX;
-	packetBuf[idx++] = 0x00; /* DAP Index, ignored in the swd. */
-	packetBuf[idx++] = 0x01; /* Tx count */
-	packetBuf[idx++] = req.raw;
-	ret = usbTx(idx);
-	if (ret != OK) {
-		return ret;
-	}
+	TxPacket tx;
+	tx.write(_USB_HID_REPORT_NUM);
+	tx.write(CMD_TX);
+	tx.write(0x00);	/* DAP Index, ignored in the swd. */
+	tx.write(0x01);	/* Tx count */
+	tx.write(req.raw);
 
-	switch (packetBuf[2] & TX_ACK_MASK)
+	RxPacket rx;
+	int ret = usbTxRx(tx, &rx);
+	if (ret != OK)
+		return ret;
+
+	uint8_t* rxdata = rx.data();
+	switch (rxdata[2] & TX_ACK_MASK)
 	{
 	case TX_ACK_NO_ACK:
 		return CMSISDAP_ERR_NO_ACK;
@@ -836,19 +883,14 @@ int32_t CMSISDAP::dpapRead(bool dp, uint32_t reg, uint32_t *data)
 		return CMSISDAP_ERR_ACKWAIT;
 	}
 
-	val = buf2LE32(&packetBuf[3]);
-
-	if (data != NULL) {
-		*data = val;
-	}
+	if (data != NULL)
+		*data = buf2LE32(&rxdata[3]);
 
 	return OK;
 }
 
 int32_t CMSISDAP::dpapWrite(bool dp, uint32_t reg, uint32_t data)
 {
-	int ret;
-	uint32_t idx = 0;
 	TransferRequest req = { 0 };
 
 	req.setWrite();
@@ -858,19 +900,22 @@ int32_t CMSISDAP::dpapWrite(bool dp, uint32_t reg, uint32_t data)
 		req.setAP();
 	req.setRegister(reg);
 
-	packetBuf[idx++] = _USB_HID_REPORT_NUM; /* report number */
-	packetBuf[idx++] = CMD_TX;
-	packetBuf[idx++] = 0x00;
-	packetBuf[idx++] = 0x01;
-	packetBuf[idx++] = req.raw;
-	packetBuf[idx++] = (data)& 0xff;
-	packetBuf[idx++] = (data >> 8) & 0xff;
-	packetBuf[idx++] = (data >> 16) & 0xff;
-	packetBuf[idx++] = (data >> 24) & 0xff;
-	ret = usbTx(idx);
+	TxPacket tx;
+	tx.write(_USB_HID_REPORT_NUM);
+	tx.write(CMD_TX);
+	tx.write(0x00);	/* DAP Index, ignored in the swd. */
+	tx.write(0x01);	/* Tx count */
+	tx.write(req.raw);
+	tx.write32(data);
 
-	if (packetBuf[1] != 0x01) {
-		return packetBuf[2];
+	RxPacket rx;
+	int ret = usbTxRx(tx, &rx);
+	if (ret != OK)
+		return ret;
+
+	uint8_t* rxdata = rx.data();
+	if (rxdata[1] != 0x01) {
+		return rxdata[2];
 	}
 	return OK;
 }

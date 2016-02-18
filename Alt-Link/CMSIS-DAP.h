@@ -95,15 +95,49 @@ private:
 	std::string name;
 	std::string vendor;
 	uint32_t ap_bank_value;
-	uint16_t packetBufSize;
+	uint16_t packetMaxSize;
 	uint16_t packetMaxCount;
 	uint16_t pid;
 	uint16_t vid;
 	Caps caps;
 
+	class TxPacket
+	{
+	private:
+		uint8_t _data[64 + 1];
+		uint32_t written;
+
+	public:
+		TxPacket() : written(0) {}
+
+		int32_t write(uint8_t data);
+		int32_t write16(uint16_t data);
+		int32_t write32(uint32_t data);
+		void clear() { written = 0; }
+		const uint8_t* data() const { return _data; }
+		uint32_t length() const { return written; }
+	};
+
+	class RxPacket
+	{
+	private:
+		uint8_t _data[64];
+		uint32_t _length;
+
+	public:
+		RxPacket() : _length(sizeof(_data)) {}
+
+		uint8_t* data() { return _data; }
+		uint32_t length() const { return _length; }
+		void length(uint32_t len) { _length = len; }
+	};
+
 	int32_t usbOpen();
 	int32_t usbClose();
 	int32_t usbTx(uint32_t txlen);
+	int32_t usbTx(const TxPacket& packet);
+	int32_t usbRx(RxPacket* rx);
+	int32_t usbTxRx(const TxPacket& tx, RxPacket* rx);
 	int32_t cmdInfoCapabilities();
 	int32_t cmdConnect();
 	int32_t cmdDisconnect();
@@ -117,4 +151,6 @@ private:
 	int32_t cmdSwdConf(uint8_t cfg);
 	int32_t dpapRead(bool dp, uint32_t reg, uint32_t *data);
 	int32_t dpapWrite(bool dp, uint32_t reg, uint32_t val);
+
+	int32_t getInfo(uint32_t type, RxPacket* rx);
 };
