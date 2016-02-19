@@ -218,12 +218,13 @@ public:
 				uint32_t RESERVED0				: 1;
 				uint32_t PWR_DOMAIN_ID			: 5;
 				uint32_t RESERVED1				: 3;
-				uint32_t ADDRESS_OFFSET			: 24;
+				uint32_t ADDRESS_OFFSET			: 20;
 			};
 			uint32_t raw;
 			uint32_t addr() { return raw & 0xFFFFF000; }
 			bool present() { return FORMAT && PRESENT && addr() != 0 ? true : false; }
 		};
+		static_assert(CONFIRM_SIZE(Entry, uint32_t));
 
 	private:
 		std::shared_ptr<Component> component;
