@@ -89,25 +89,45 @@ int _tmain(int argc, _TCHAR* argv[])
 		return ret;
 	}
 
-	// magic packetを送り、SWD へ移行
-	ret = dap.jtagToSwd();
-	if (ret != OK) {
-		_ERRPRT("Failed to switch to SWD mode. (0x%08x)\n", ret);
+#if 0
+	CMSISDAP::ConnectionType type = CMSISDAP::JTAG;//CMSISDAP::SWJ_SWD;
+#else
+	CMSISDAP::ConnectionType type = CMSISDAP::SWJ_SWD;
+#endif
+
+	ret = dap.setConnectionType(type);
+	if (ret != OK)
+	{
+		_ERRPRT("Failed to set connection type. (0x%08x)\n", ret);
 		return ret;
 	}
 
 	ADIv5 adi(dap);
-	// SWD 移行直後は Reset State なので IDCODE を読んで解除する
-	ADIv5::DP_IDCODE idcode;
-	ret = adi.getIDCODE(&idcode);
-	if (ret != OK)
+
+	if (type == CMSISDAP::JTAG || type == CMSISDAP::SWJ_JTAG)
 	{
-		_ERRPRT("Could not read DP_IDCODE. (0x%08x)\n", ret);
-		if (ret == CMSISDAP_ERR_NO_ACK)
-			_ERRPRT("Target did not respond. Please check the electrical connection.\n");
-		return ret;
+		std::vector<uint32_t> idcodes;
+		ret = dap.getJtagIDCODEs(&idcodes);
+		if (ret != OK)
+		{
+			_ERRPRT("Failed to get IDCODEs. (0x%08x)\n", ret);
+			return ret;
+		}
 	}
-	idcode.print();
+	else if (type == CMSISDAP::SWJ_SWD)
+	{
+		// SWD 移行直後は Reset State なので IDCODE を読んで解除する
+		ADIv5::DP_IDCODE idcode;
+		ret = adi.getIDCODE(&idcode);
+		if (ret != OK)
+		{
+			_ERRPRT("Could not read DP_IDCODE. (0x%08x)\n", ret);
+			if (ret == CMSISDAP_ERR_NO_ACK)
+				_ERRPRT("Target did not respond. Please check the electrical connection.\n");
+			return ret;
+		}
+		idcode.print();
+	}
 
 #if 0
 	ret = dap.resetLink();

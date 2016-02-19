@@ -13,6 +13,7 @@
 #endif
 #include <hidapi.h>
 #include <string>
+#include <vector>
 
 #include "DAP.h"
 
@@ -21,10 +22,9 @@ class CMSISDAP : public DAP
 public:
 	int32_t initialize(void);
 	int32_t finalize(void);
-	int32_t resetSw(void);
-	int32_t resetHw(void);
 	int32_t setSpeed(uint32_t speed);
-	int32_t jtagToSwd();
+	void setDapIndex(uint8_t index) { dapIndex = index; }
+	int32_t getJtagIDCODEs(std::vector<uint32_t>* idcodes);
 
 public:
 	virtual int32_t dpRead(uint32_t reg, uint32_t *data);
@@ -37,8 +37,17 @@ public:
 		CONNECT = 0,
 		RUNNING = 1
 	};
+	
+	enum ConnectionType
+	{
+		JTAG,
+		SWJ_JTAG,
+		SWJ_SWD
+	};
 
-	int32_t cmdSwjPins(uint8_t isLevelHigh, uint8_t pin, uint32_t delay, uint8_t *input);
+	int32_t setConnectionType(ConnectionType type);
+
+	int32_t cmdSwjPins(uint8_t value, uint8_t pin, uint32_t delay, uint8_t *input);
 	int32_t cmdSwjClock(uint32_t clock);
 	int32_t cmdLed(LED led, bool on);
 	int32_t resetLink(void);
@@ -89,6 +98,19 @@ private:
 	};
 	static_assert(CONFIRM_UINT32(Caps));
 
+	union SequenceInfo
+	{
+		struct
+		{
+			uint32_t cycles		: 6;
+			uint32_t TMS		: 1;
+			uint32_t TDO		: 1;	// capture TDO data
+			uint32_t padding	: 24;
+		};
+		uint8_t raw[4];
+	};
+	static_assert(CONFIRM_SIZE(SequenceInfo, uint32_t));
+
 	hid_device *hidHandle;
 	uint8_t *packetBuf;
 	std::string fwver;
@@ -100,6 +122,8 @@ private:
 	uint16_t pid;
 	uint16_t vid;
 	Caps caps;
+
+	uint8_t dapIndex;
 
 	class TxPacket
 	{
@@ -139,7 +163,7 @@ private:
 	int32_t usbRx(RxPacket* rx);
 	int32_t usbTxRx(const TxPacket& tx, RxPacket* rx);
 	int32_t cmdInfoCapabilities();
-	int32_t cmdConnect();
+	int32_t cmdConnect(uint8_t mode);
 	int32_t cmdDisconnect();
 	int32_t cmdTxConf(uint8_t idle, uint16_t delay, uint16_t retry);
 	int32_t cmdInfoFwVer();
@@ -147,10 +171,21 @@ private:
 	int32_t cmdInfoName();
 	int32_t cmdInfoPacketSize();
 	int32_t cmdInfoPacketCount();
-	int32_t getStatus();
-	int32_t cmdSwdConf(uint8_t cfg);
+	int32_t getPinStatus();
 	int32_t dpapRead(bool dp, uint32_t reg, uint32_t *data);
 	int32_t dpapWrite(bool dp, uint32_t reg, uint32_t val);
-
 	int32_t getInfo(uint32_t type, RxPacket* rx);
+
+	// SWD
+	int32_t cmdSwdConf(uint8_t cfg);
+
+	// JTAG
+	int32_t cmdJtagSequence(SequenceInfo info, uint8_t* in, uint8_t* out);
+	int32_t resetJtagTap();
+	int32_t findJtagDevices(uint32_t* num);
+	int32_t sendTms(uint8_t cycles, uint8_t tms, uint8_t tdi = 0, uint8_t* tdo = nullptr);
+
+	// SWJ
+	int32_t jtagToSwd();
+	int32_t swdToJtag();
 };

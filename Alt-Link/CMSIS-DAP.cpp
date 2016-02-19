@@ -27,13 +27,9 @@ static inline uint32_t buf2LE32(const uint8_t *buf)
 	return (uint32_t)(buf[0] | buf[1] << 8 | buf[2] << 16 | buf[3] << 24);
 }
 
-/* CMD_CONNECT */
-enum ConnectInterface : uint8_t
-{
-	DEFAULT	= 0x0,
-	SWD		= 0x1,
-	JTAG	= 0x2
-};
+#define DAP_MODE_DEFAULT	0x0
+#define DAP_MODE_SWD		0x1
+#define DAP_MODE_JTAG		0x2
 
 /* DAP Status Code */
 #define _DAP_RES_OK 0
@@ -67,8 +63,9 @@ union TransferRequest
 		uint32_t ValueMatch	: 1;
 		uint32_t MatchMask	: 1;
 		uint32_t Reserved	: 2;
+		uint32_t Padding	: 24;
 	};
-	uint8_t raw;
+	uint8_t raw[4];
 
 	void setAP() { APnDP = 1; }
 	void setDP() { APnDP = 0; }
@@ -76,7 +73,7 @@ union TransferRequest
 	void setWrite() { RnW = 0; }
 	void setRegister(uint32_t reg) { A32 = (reg & 0xC) >> 2; }
 };
-static_assert(CONFIRM_SIZE(TransferRequest, sizeof(uint8_t)));
+static_assert(CONFIRM_SIZE(TransferRequest, uint32_t));
 
 /* three-bit ACK values for SWD access (sent LSB first) */
 #define TX_ACK_OK 0x1
@@ -287,12 +284,12 @@ int32_t CMSISDAP::cmdLed(LED led, bool on)
 	return ret;
 }
 
-int32_t CMSISDAP::cmdConnect(void)
+int32_t CMSISDAP::cmdConnect(uint8_t mode)
 {
 	TxPacket tx;
 	tx.write(_USB_HID_REPORT_NUM);
 	tx.write(CMD_CONNECT);
-	tx.write(SWD);
+	tx.write(mode);
 
 	RxPacket rx;
 	int ret = usbTxRx(tx, &rx);
@@ -301,7 +298,7 @@ int32_t CMSISDAP::cmdConnect(void)
 		return ret;
 	}
 	uint8_t* data = rx.data();
-	if (data[1] != SWD) {
+	if (data[1] != mode) {
 		return CMSISDAP_ERR_FATAL;
 	}
 
@@ -481,19 +478,21 @@ int32_t CMSISDAP::cmdInfoPacketCount(void)
 	return OK;
 }
 
-int32_t CMSISDAP::getStatus(void)
+int32_t CMSISDAP::getPinStatus(void)
 {
 	int ret;
 	uint8_t d;
 
-	ret = cmdSwjPins(0, _PIN_SWCLK, 0, &d);
+	ret = cmdSwjPins(0, 0, 0, &d);
 	if (ret != OK) {
 		_DBGPRT("err ret=%08x %s %s %d\n", ret, __FUNCTION__, __FILE__, __LINE__);
 		return ret;
 	}
 
-	_DBGPRT("SWCLK:%d SWDIO:%d TDI:%d TDO:%d !TRST:%d !RESET:%d\n", (d & _PIN_SWCLK) ? 1 : 0, (d & _PIN_SWDIO) ? 1 : 0,
-	        (d & _PIN_TDI) ? 1 : 0, (d & _PIN_TDO) ? 1 : 0, (d & _PIN_nTRST) ? 1 : 0, (d & _PIN_nRESET) ? 1 : 0);
+	_DBGPRT("SWCLK/TCK:%d SWDIO/TMS:%d TDI:%d TDO:%d !TRST:%d !RESET:%d\n",
+		(d & _PIN_SWCLK) ? 1 : 0, (d & _PIN_SWDIO) ? 1 : 0,
+		(d & _PIN_TDI) ? 1 : 0, (d & _PIN_TDO) ? 1 : 0,
+		(d & _PIN_nTRST) ? 1 : 0, (d & _PIN_nRESET) ? 1 : 0);
 
 	return OK;
 }
@@ -569,6 +568,75 @@ int32_t CMSISDAP::jtagToSwd(void)
 	return OK;
 }
 
+int32_t CMSISDAP::swdToJtag(void)
+{
+	TxPacket tx;
+	tx.write(_USB_HID_REPORT_NUM);
+	tx.write(CMD_SWJ_SEQ);
+	tx.write(7 * 8);
+	tx.write32(0xFFFFFFFF);
+	tx.write16(0xFFFF);
+	tx.write(0xFF);
+
+	RxPacket rx;
+	int ret = usbTxRx(tx, &rx);
+	if (ret != OK) {
+		_DBGPRT("err ret=%08x %s %s %d\n", ret, __FUNCTION__, __FILE__, __LINE__);
+		return ret;
+	}
+	if (rx.data()[1] != _DAP_RES_OK)
+		return CMSISDAP_ERR_DAP_RES;
+
+
+	tx.clear();
+	tx.write(_USB_HID_REPORT_NUM);
+	tx.write(CMD_SWJ_SEQ);
+	tx.write(2 * 8);
+	tx.write(0x3C);
+	tx.write(0xE7);
+
+	ret = usbTxRx(tx, &rx);
+	if (ret != OK) {
+		_DBGPRT("err ret=%08x %s %s %d\n", ret, __FUNCTION__, __FILE__, __LINE__);
+		return ret;
+	}
+	if (rx.data()[1] != _DAP_RES_OK)
+		return CMSISDAP_ERR_DAP_RES;
+
+
+	tx.clear();
+	tx.write(_USB_HID_REPORT_NUM);
+	tx.write(CMD_SWJ_SEQ);
+	tx.write(1 * 8);
+	tx.write(0xFF);
+
+	ret = usbTxRx(tx, &rx);
+	if (ret != OK) {
+		_DBGPRT("err ret=%08x %s %s %d\n", ret, __FUNCTION__, __FILE__, __LINE__);
+		return ret;
+	}
+	if (rx.data()[1] != _DAP_RES_OK)
+		return CMSISDAP_ERR_DAP_RES;
+
+
+	/* 8 cycle idle period */
+	tx.clear();
+	tx.write(_USB_HID_REPORT_NUM);
+	tx.write(CMD_SWJ_SEQ);
+	tx.write(8);
+	tx.write(0);
+
+	ret = usbTxRx(tx, &rx);
+	if (ret != OK) {
+		_DBGPRT("err ret=%08x %s %s %d\n", ret, __FUNCTION__, __FILE__, __LINE__);
+		return ret;
+	}
+	if (rx.data()[1] != _DAP_RES_OK)
+		return CMSISDAP_ERR_DAP_RES;
+
+	return OK;
+}
+
 int32_t CMSISDAP::resetLink(void)
 {
 #if 0
@@ -606,12 +674,12 @@ int32_t CMSISDAP::resetLink(void)
 	return ret;
 }
 
-int32_t CMSISDAP::cmdSwjPins(uint8_t isLevelHigh, uint8_t pin, uint32_t delay, uint8_t *input)
+int32_t CMSISDAP::cmdSwjPins(uint8_t value, uint8_t pin, uint32_t delay, uint8_t *input)
 {
 	TxPacket tx;
 	tx.write(_USB_HID_REPORT_NUM);
 	tx.write(CMD_SWJ_PINS);
-	tx.write(!!(isLevelHigh));
+	tx.write(value);
 	tx.write(pin);
 	tx.write32(delay);
 
@@ -676,6 +744,206 @@ int32_t CMSISDAP::cmdSwdConf(uint8_t cfg)
 	return ret;
 }
 
+int32_t CMSISDAP::resetJtagTap()
+{
+	// go to test logic reset state
+	int32_t ret = sendTms(5, 1);
+	if (ret != OK)
+		return ret;
+
+	// toggle nTRST
+	ret = cmdSwjPins(0, _PIN_nTRST, 0, nullptr);
+	if (ret != OK)
+		return ret;
+	
+	uint8_t value;
+	ret = cmdSwjPins(_PIN_nTRST, _PIN_nTRST, 0, &value);
+	if (ret != OK)
+		return ret;
+
+	if ((value & _PIN_nTRST) == 0)
+	{
+		static bool isFirst = true;
+		if (isFirst)
+		{
+			_DBGPRT("[Warning] Failed to control nTRST pin. Please pull-up nTRST pin manually.\n");
+			isFirst = false;
+		}
+	}
+
+	return OK;
+}
+
+int32_t CMSISDAP::findJtagDevices(uint32_t* num)
+{
+	if (num == nullptr)
+		return CMSISDAP_ERR_INVALID_ARGUMENT;
+
+	int32_t ret = resetJtagTap();
+	if (ret != OK)
+		return ret;
+
+	// go to Shift-IR
+	ret = sendTms(1, 0);
+	if (ret != OK)
+		return ret;
+	ret = sendTms(2, 1);
+	if (ret != OK)
+		return ret;
+	ret = sendTms(2, 0);
+	if (ret != OK)
+		return ret;
+
+	// make all devices to BYPASS mode (1280bits)
+	for (uint32_t i = 0; i < 20; i++)
+	{
+		ret = sendTms(64, 0, 0xFF);
+		if (ret != OK)
+			return ret;
+	}
+	// send last bit and exit Shift-IR
+	ret = sendTms(1, 1, 0xFF);
+	if (ret != OK)
+		return ret;
+
+	// go to Shift-DR from Exit1-IR
+	ret = sendTms(2, 1);
+	if (ret != OK)
+		return ret;
+	ret = sendTms(2, 0);
+	if (ret != OK)
+		return ret;
+
+	// flush all DR (320bits)
+	for (uint32_t i = 0; i < 5; i++)
+	{
+		ret = sendTms(64, 0, 0);
+		if (ret != OK)
+			return ret;
+	}
+
+	uint32_t count = 0;
+	while (1)
+	{
+		uint8_t out = 0;
+		ret = sendTms(1, 0, 0xFF, &out);
+		if (out != 0)
+		{
+			*num = count;
+			_DBGPRT("JTAG Devices: %d\n", count);
+			return OK;
+		}
+
+		count++;
+		if (count > 320)
+			return ENODEV;
+	}
+
+	return OK;
+}
+
+int32_t CMSISDAP::getJtagIDCODEs(std::vector<uint32_t>* idcodes)
+{
+	if (idcodes == nullptr)
+		return CMSISDAP_ERR_INVALID_ARGUMENT;
+
+	uint32_t num;
+	int32_t ret = findJtagDevices(&num);
+	if (ret != OK)
+	{
+		_ERRPRT("Failed to find jtag devices. (0x%08x)\n", ret);
+		return ret;
+	}
+
+	ret = resetJtagTap();
+	if (ret != OK)
+		return ret;
+
+	// go to Shift-DR
+	ret = sendTms(1, 0);
+	if (ret != OK)
+		return ret;
+	ret = sendTms(1, 1);
+	if (ret != OK)
+		return ret;
+	ret = sendTms(2, 0);
+	if (ret != OK)
+		return ret;
+
+	for (uint32_t i = 0; i < num; i++)
+	{
+		uint32_t idcode = 0;
+		for (uint32_t j = 0; j < 4; j++)
+		{
+			uint8_t value;
+			ret = sendTms(8, 0, 0, &value);
+			if (ret != OK)
+				return ret;
+			idcode |= (value << (8 * j));
+		}
+		idcodes->push_back(idcode);
+	}
+	return OK;
+}
+
+int32_t CMSISDAP::sendTms(uint8_t cycles, uint8_t tms, uint8_t tdi, uint8_t* tdo)
+{
+	if (cycles > 64 || cycles == 0)
+		return CMSISDAP_ERR_INVALID_ARGUMENT;
+
+	if (tms != 0 && tms != 1)
+		return CMSISDAP_ERR_INVALID_ARGUMENT;
+
+	uint8_t in[8];
+	for (uint32_t i = 0; i < 8; i++)
+		in[i] = tdi;
+	
+	SequenceInfo info = { 0 };
+	info.cycles = ((cycles == 64) ? 0 : cycles);
+	info.TMS = tms ? 1 : 0;
+	info.TDO = tdo ? 1 : 0;
+	return cmdJtagSequence(info, in, tdo);
+}
+
+int32_t CMSISDAP::cmdJtagSequence(SequenceInfo info, uint8_t* in, uint8_t* out)
+{
+	if (in == nullptr)
+		return CMSISDAP_ERR_INVALID_ARGUMENT;
+
+	TxPacket tx;
+	tx.write(_USB_HID_REPORT_NUM);
+	tx.write(CMD_JTAG_SEQ);
+	tx.write(1);
+	tx.write(info.raw[0]);
+
+	uint32_t bytes = (info.cycles == 0) ? 8 : ((info.cycles >> 3) + 1);
+
+	for (uint32_t i = 0; i < bytes; i++)
+	{
+		tx.write(*in);
+		in++;
+	}
+
+	RxPacket rx;
+	int ret = usbTxRx(tx, &rx);
+	if (ret != OK)
+	{
+		_DBGPRT("err ret=%08x %s %s %d\n", ret, __FUNCTION__, __FILE__, __LINE__);
+		return ret;
+	}
+	if (rx.data()[1] != _DAP_RES_OK)
+	{
+		ret = CMSISDAP_ERR_DAP_RES;
+		_DBGPRT("err ret=%08x %s %s %d\n", ret, __FUNCTION__, __FILE__, __LINE__);
+	}
+	else if (out)
+	{
+		*out = rx.data()[2];
+	}
+
+	return ret;
+}
+
 int32_t CMSISDAP::initialize(void)
 {
 	int32_t ret;
@@ -709,12 +977,6 @@ int32_t CMSISDAP::initialize(void)
 		return ret;
 	}
 
-	ret = cmdConnect();
-	if (ret != OK)
-	{
-		return ret;
-	}
-
 	ret = cmdInfoFwVer();
 	if (ret != OK)
 	{
@@ -743,7 +1005,7 @@ int32_t CMSISDAP::initialize(void)
 		return ret;
 	}
 
-	ret = getStatus();
+	ret = getPinStatus();
 	if (ret != OK) {
 		return ret;
 	}
@@ -754,10 +1016,6 @@ int32_t CMSISDAP::initialize(void)
 	}
 
 	ret = cmdTxConf(0, 64, 0);
-	if (ret != OK) {
-		return ret;
-	}
-	ret = cmdSwdConf(0x00);
 	if (ret != OK) {
 		return ret;
 	}
@@ -781,6 +1039,52 @@ int32_t CMSISDAP::initialize(void)
 	_DBGPRT("  USB VID     : 0x%04x\n", vid);
 
 	return ret;
+}
+
+int32_t CMSISDAP::setConnectionType(ConnectionType type)
+{
+	int32_t ret;
+	
+	if (type == JTAG)
+	{
+		ret = cmdConnect(DAP_MODE_JTAG);
+		if (ret != OK)
+			return ret;
+	}
+	else if (type == SWJ_JTAG)
+	{
+		ret = cmdConnect(DAP_MODE_JTAG);
+		if (ret != OK)
+			return ret;
+
+		// magic packetを送り、JTAG へ移行
+		ret = swdToJtag();
+		if (ret != OK)
+		{
+			_ERRPRT("Failed to switch to JTAG mode. (0x%08x)\n", ret);
+			return ret;
+		}
+	}
+	else if (type == SWJ_SWD)
+	{
+		ret = cmdConnect(DAP_MODE_SWD);
+		if (ret != OK)
+			return ret;
+
+		ret = cmdSwdConf(0x00);
+		if (ret != OK)
+			return ret;
+
+		// magic packetを送り、SWD へ移行
+		ret = jtagToSwd();
+		if (ret != OK)
+		{
+			_ERRPRT("Failed to switch to SWD mode. (0x%08x)\n", ret);
+			return ret;
+		}
+	}
+
+	return OK;
 }
 
 int32_t CMSISDAP::finalize(void)
@@ -808,16 +1112,6 @@ int32_t CMSISDAP::finalize(void)
 	}
 
 	return ret;
-}
-
-int32_t CMSISDAP::resetSw(void)
-{
-	return cmdSwjPins(_PIN_SWCLK, 1, 0, NULL);
-}
-
-int32_t CMSISDAP::resetHw(void)
-{
-	return cmdSwjPins(_PIN_nRESET, 1, 0, NULL);
 }
 
 int32_t CMSISDAP::setSpeed(uint32_t speed)
@@ -863,9 +1157,9 @@ int32_t CMSISDAP::dpapRead(bool dp, uint32_t reg, uint32_t *data)
 	TxPacket tx;
 	tx.write(_USB_HID_REPORT_NUM);
 	tx.write(CMD_TX);
-	tx.write(0x00);	/* DAP Index, ignored in the swd. */
+	tx.write(dapIndex);	/* DAP Index, ignored in the swd. */
 	tx.write(0x01);	/* Tx count */
-	tx.write(req.raw);
+	tx.write(req.raw[0]);
 
 	RxPacket rx;
 	int ret = usbTxRx(tx, &rx);
@@ -903,9 +1197,9 @@ int32_t CMSISDAP::dpapWrite(bool dp, uint32_t reg, uint32_t data)
 	TxPacket tx;
 	tx.write(_USB_HID_REPORT_NUM);
 	tx.write(CMD_TX);
-	tx.write(0x00);	/* DAP Index, ignored in the swd. */
+	tx.write(dapIndex);	/* DAP Index, ignored in the swd. */
 	tx.write(0x01);	/* Tx count */
-	tx.write(req.raw);
+	tx.write(req.raw[0]);
 	tx.write32(data);
 
 	RxPacket rx;
