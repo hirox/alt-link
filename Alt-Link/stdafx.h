@@ -8,6 +8,7 @@
 #include <tchar.h>
 #include <cstdio>
 #include <cstdint>
+#include <errno.h>
 
 #include "error.h"
 #include "assert.h"
