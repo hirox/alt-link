@@ -1,6 +1,7 @@
 
 #include "stdafx.h"
 #include "ADIv5.h"
+#include "JEP106.h"
 
 #define _DBGPRT printf
 
@@ -220,17 +221,7 @@ void ADIv5::Component::print()
 	if (pid.JEDEC)
 	{
 		_DBGPRT("      Designer          : %s (JEP106 CONT.:%x, ID:%x)\n",
-			pid.isARM() ? "ARM" :
-			pid.JEP106CONTINUATION == 0x0 && pid.JEP106ID == 0x01 ? "AMD" :
-			pid.JEP106CONTINUATION == 0x0 && pid.JEP106ID == 0x0E ? "Freescale(Motorola)" :
-			pid.JEP106CONTINUATION == 0x0 && pid.JEP106ID == 0x15 ? "NXP(Philips)" :
-			pid.JEP106CONTINUATION == 0x0 && pid.JEP106ID == 0x17 ? "Texas Instruments" :
-			pid.JEP106CONTINUATION == 0x0 && pid.JEP106ID == 0x20 ? "STMicroelectronics" :
-			pid.JEP106CONTINUATION == 0x0 && pid.JEP106ID == 0x21 ? "Lattice Semi." :
-			pid.JEP106CONTINUATION == 0x0 && pid.JEP106ID == 0x34 ? "Cypress" :
-			pid.JEP106CONTINUATION == 0x0 && pid.JEP106ID == 0x48 ? "Apple Computer" :
-			pid.JEP106CONTINUATION == 0x0 && pid.JEP106ID == 0x49 ? "Xilinx" :
-			"UNKNOWN",
+			getJEP106DesignerName(pid.JEP106CONTINUATION, pid.JEP106ID),
 			pid.JEP106CONTINUATION, pid.JEP106ID);
 	}
 	_DBGPRT("      Revision          : %x\n", pid.REVISION);

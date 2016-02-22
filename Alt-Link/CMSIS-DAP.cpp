@@ -3,6 +3,7 @@
 
 #include "CMSIS-DAP.h"
 #include "ADIv5.h"
+#include "JEP106.h"
 
 #define USE_USB_TX_DBG 0
 
@@ -842,7 +843,7 @@ int32_t CMSISDAP::findJtagDevices(uint32_t* num)
 	return OK;
 }
 
-int32_t CMSISDAP::getJtagIDCODEs(std::vector<uint32_t>* idcodes)
+int32_t CMSISDAP::getJtagIDCODEs(std::vector<JTAG_IDCODE>* idcodes)
 {
 	if (idcodes == nullptr)
 		return CMSISDAP_ERR_INVALID_ARGUMENT;
@@ -872,16 +873,89 @@ int32_t CMSISDAP::getJtagIDCODEs(std::vector<uint32_t>* idcodes)
 
 	for (uint32_t i = 0; i < num; i++)
 	{
-		uint32_t idcode = 0;
+		JTAG_IDCODE idcode = { 0 };
 		for (uint32_t j = 0; j < 4; j++)
 		{
 			uint8_t value;
 			ret = sendTms(8, 0, 0, &value);
 			if (ret != OK)
 				return ret;
-			idcode |= (value << (8 * j));
+			idcode.raw |= (value << (8 * j));
 		}
 		idcodes->push_back(idcode);
+	}
+	return OK;
+}
+
+int32_t CMSISDAP::scanJtagDevices()
+{
+	int32_t ret = getJtagIDCODEs(&jtagIDCODEs);
+	if (ret != OK)
+	{
+		_ERRPRT("Failed to get IDCODEs. (0x%08x)\n", ret);
+		return ret;
+	}
+
+	if (jtagIDCODEs.size() == 0)
+	{
+		_ERRPRT("No JTAG devices found.\n");
+		return OK;
+	}
+
+	for (uint32_t i = 0; i < jtagIDCODEs.size(); i++)
+	{
+		auto idcode = jtagIDCODEs[i];
+
+		_DBGPRT("Index: %d\n", i);
+		if (idcode.RAO)
+			_DBGPRT("  Designer: %s (%x)\n", getJEP106DesignerName(idcode.DESIGNER >> 7, idcode.DESIGNER & 0x7F), idcode.DESIGNER);
+		else
+			_DBGPRT("  Designer: UNKNOWN (%x,%x)\n", idcode.DESIGNER, idcode.raw);
+
+		if (idcode.isARM())
+		{
+			if (idcode.PARTNO == 0xBA00)
+			{
+				_DBGPRT("  Device  : JTAG-DP (VER.%d) (0x%08x)\n", idcode.VERSION, idcode.raw);
+				jtagIrLength.push_back(4);
+			}
+			else if (idcode.PARTNO == 0xBA01)
+			{
+				// SW-DP のようだけど JTAG-DP みたい
+				_DBGPRT("  Device  : JTAG-DP (VER.%d) (0x%08x)\n", idcode.VERSION, idcode.raw);
+				jtagIrLength.push_back(4);
+			}
+#if 0
+			else if (idcode.PARTNO == 0xBA02)
+			{
+				_DBGPRT("  Device  : SW-DP Multidrop support (VER.%d) (0x%08x)\n", idcode.VERSION, idcode.raw);
+				jtagIrLength.push_back(4);
+			}
+#endif
+			else
+			{
+				_DBGPRT("  Device  : Unknown (PARTNO %x, VER.%d) (0x%08x)\n", idcode.PARTNO, idcode.VERSION, idcode.raw);
+				jtagIrLength.push_back(4);
+			}
+		}
+		else if (idcode.isOldARM())
+		{
+			switch (idcode.PARTNO)
+			{
+			case 0x7B37:
+				_DBGPRT("  Device  : ARM ARM11 MPCore (REV.%d) (0x%08x)\n", idcode.VERSION, idcode.raw);
+				jtagIrLength.push_back(5);
+			case 0x5966:
+				_DBGPRT("  Device  : ARM ARM966E-S (REV.%d) (0x%08x)\n", idcode.VERSION, idcode.raw);
+				jtagIrLength.push_back(4);
+				break;
+			}
+		}
+		else
+		{
+			_DBGPRT("  Device  : Unknown (PARTNO %x, VER.%d) (0x%08x)\n", idcode.PARTNO, idcode.VERSION, idcode.raw);
+			jtagIrLength.push_back(4);
+		}
 	}
 	return OK;
 }
@@ -916,8 +990,7 @@ int32_t CMSISDAP::cmdJtagSequence(SequenceInfo info, uint8_t* in, uint8_t* out)
 	tx.write(1);
 	tx.write(info.raw[0]);
 
-	uint32_t bytes = (info.cycles == 0) ? 8 : ((info.cycles >> 3) + 1);
-
+	uint32_t bytes = (info.cycles == 0) ? 8 : (((info.cycles - 1) >> 3) + 1);
 	for (uint32_t i = 0; i < bytes; i++)
 	{
 		tx.write(*in);
@@ -931,14 +1004,19 @@ int32_t CMSISDAP::cmdJtagSequence(SequenceInfo info, uint8_t* in, uint8_t* out)
 		_DBGPRT("err ret=%08x %s %s %d\n", ret, __FUNCTION__, __FILE__, __LINE__);
 		return ret;
 	}
-	if (rx.data()[1] != _DAP_RES_OK)
+	uint8_t* rxdata = rx.data();
+	if (rxdata[1] != _DAP_RES_OK)
 	{
 		ret = CMSISDAP_ERR_DAP_RES;
 		_DBGPRT("err ret=%08x %s %s %d\n", ret, __FUNCTION__, __FILE__, __LINE__);
 	}
 	else if (out)
 	{
-		*out = rx.data()[2];
+		for (uint32_t i = 0; i < bytes; i++)
+		{
+			*out = rxdata[i + 2];
+			out++;
+		}
 	}
 
 	return ret;

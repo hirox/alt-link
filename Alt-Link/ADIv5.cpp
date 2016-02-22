@@ -1,6 +1,7 @@
 
 #include "stdafx.h"
 #include "ADIv5.h"
+#include "JEP106.h"
 
 #include <thread>
 #include <chrono>
@@ -358,7 +359,7 @@ int32_t ADIv5::scanAPs()
 
 		_DBGPRT("  AP-%d\n", i);
 		_DBGPRT("    IDR: 0x%08x\n", idr.raw);
-		_DBGPRT("      Designer   : %s\n", idr.ContinuationCode == 0x04 && idr.IdentityCode == 0x3b ? "ARM" : "UNKNOWN");
+		_DBGPRT("      Designer   : %s\n", getJEP106DesignerName(idr.ContinuationCode, idr.IdentityCode));
 		_DBGPRT("      Class/Type : %s\n",
 			idr.Type == 0x00 && idr.Class == AP_IDR::NoDefined ? "JTAG-AP" :
 			idr.isAHB() ? "MEM-AP AMBA AHB bus" :
@@ -374,7 +375,7 @@ int32_t ADIv5::scanAPs()
 			if (ret != OK) {
 				return ret;
 			}
-			_DBGPRT("    BASE : 0x%08x\n", base & 0xFFFFF000);
+			_DBGPRT("    BASE : 0x%08x (%x)\n", base & 0xFFFFF000, base);
 			_DBGPRT("      Debug entry : %s\n", base & 0x1 ? "present" : "no");
 
 			if (idr.isAHB())
@@ -772,7 +773,7 @@ int32_t ADIv5::ROM_TABLE::read()
 			break;
 
 		uint32_t entryAddr = component->base + entry.addr();
-		_DBGPRT("  ENTRY          : 0x%08x (0x%08x)\n", entry.raw, entryAddr);
+		_DBGPRT("  ENTRY          : 0x%08x (addr: 0x%08x)\n", entry.raw, entryAddr);
 		if (entry.FORMAT)
 		{
 			_DBGPRT("    Present      : %s\n", entry.PRESENT ? "yes" : "no");

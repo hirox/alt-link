@@ -146,6 +146,7 @@
     <ClInclude Include="Converter.h" />
     <ClInclude Include="DAP.h" />
     <ClInclude Include="error.h" />
+    <ClInclude Include="JEP106.h" />
     <ClInclude Include="PacketTransfer.h" />
     <ClInclude Include="RemoteSerialProtocol.h" />
     <ClInclude Include="TargetInterface.h" />
@@ -162,6 +163,7 @@
     <ClCompile Include="CMSIS-DAP.cpp" />
     <ClCompile Include="Component.cpp" />
     <ClCompile Include="Converter.cpp" />
+    <ClCompile Include="JEP106.cpp" />
     <ClCompile Include="PacketTransfer.cpp" />
     <ClCompile Include="RemoteSerialProtocol.cpp" />
     <ClCompile Include="stdafx.cpp">

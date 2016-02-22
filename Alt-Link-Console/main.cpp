@@ -91,6 +91,8 @@ int _tmain(int argc, _TCHAR* argv[])
 
 #if 0
 	CMSISDAP::ConnectionType type = CMSISDAP::JTAG;//CMSISDAP::SWJ_SWD;
+#elif 0
+	CMSISDAP::ConnectionType type = CMSISDAP::SWJ_JTAG;
 #else
 	CMSISDAP::ConnectionType type = CMSISDAP::SWJ_SWD;
 #endif
@@ -106,13 +108,10 @@ int _tmain(int argc, _TCHAR* argv[])
 
 	if (type == CMSISDAP::JTAG || type == CMSISDAP::SWJ_JTAG)
 	{
-		std::vector<uint32_t> idcodes;
-		ret = dap.getJtagIDCODEs(&idcodes);
+		ret = dap.scanJtagDevices();
 		if (ret != OK)
-		{
-			_ERRPRT("Failed to get IDCODEs. (0x%08x)\n", ret);
 			return ret;
-		}
+
 	}
 	else if (type == CMSISDAP::SWJ_SWD)
 	{

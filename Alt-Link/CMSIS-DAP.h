@@ -23,8 +23,8 @@ public:
 	int32_t initialize(void);
 	int32_t finalize(void);
 	int32_t setSpeed(uint32_t speed);
+	int32_t scanJtagDevices();
 	void setDapIndex(uint8_t index) { dapIndex = index; }
-	int32_t getJtagIDCODEs(std::vector<uint32_t>* idcodes);
 
 public:
 	virtual int32_t dpRead(uint32_t reg, uint32_t *data);
@@ -111,6 +111,21 @@ private:
 	};
 	static_assert(CONFIRM_SIZE(SequenceInfo, uint32_t));
 
+	union JTAG_IDCODE
+	{
+		struct
+		{
+			uint32_t RAO		: 1;
+			uint32_t DESIGNER	: 11;
+			uint32_t PARTNO		: 16;
+			uint32_t VERSION	: 4;
+		};
+		uint32_t raw;
+		bool isARM() { return (RAO == 1 && DESIGNER == 0x23B) ? true : false; };
+		bool isOldARM() { return (RAO == 1 && DESIGNER == 0x787) ? true : false; };
+	};
+	static_assert(CONFIRM_UINT32(JTAG_IDCODE));
+
 	hid_device *hidHandle;
 	uint8_t *packetBuf;
 	std::string fwver;
@@ -124,6 +139,10 @@ private:
 	Caps caps;
 
 	uint8_t dapIndex;
+
+	// JTAG
+	std::vector<JTAG_IDCODE> jtagIDCODEs;
+	std::vector<uint32_t> jtagIrLength;
 
 	class TxPacket
 	{
@@ -180,9 +199,10 @@ private:
 	int32_t cmdSwdConf(uint8_t cfg);
 
 	// JTAG
+	int32_t getJtagIDCODEs(std::vector<JTAG_IDCODE>* idcodes);
+	int32_t findJtagDevices(uint32_t* num);
 	int32_t cmdJtagSequence(SequenceInfo info, uint8_t* in, uint8_t* out);
 	int32_t resetJtagTap();
-	int32_t findJtagDevices(uint32_t* num);
 	int32_t sendTms(uint8_t cycles, uint8_t tms, uint8_t tdi = 0, uint8_t* tdo = nullptr);
 
 	// SWJ
