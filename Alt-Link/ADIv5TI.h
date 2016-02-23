@@ -5,6 +5,7 @@
 #include <vector>
 #include <memory>
 #include "ADIv5.h"
+#include "ARMv7ARDIF.h"
 #include "ARMv6MSCS.h"
 #include "ARMv6MDWT.h"
 #include "ARMv6MBPU.h"
@@ -15,6 +16,7 @@ class ADIv5TI : public TargetInterface
 {
 private:
 	ADIv5& adi;
+	std::vector<std::shared_ptr<ARMv7ARDIF>> v7dif;
 	std::shared_ptr<ARMv6MSCS> scs;
 	std::shared_ptr<ARMv6MDWT> dwt;
 	std::shared_ptr<ARMv6MBPU> bpu;

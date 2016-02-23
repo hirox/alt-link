@@ -10,6 +10,23 @@ enum Signal
 
 ADIv5TI::ADIv5TI(ADIv5 _adi) : adi(_adi)
 {
+	auto _v7dif = adi.findARMv7ARDIF();
+	if (_v7dif.size() > 0)
+	{
+		_DBGPRT("ARMv7-A/R Debug Interface\n");
+		for (auto _dif : _v7dif)
+		{
+			auto dif = std::make_shared<ARMv7ARDIF>(*_dif);
+			v7dif.push_back(dif);
+
+			dif->init(_dif->getPid().PART);
+
+			uint32_t pc;
+			dif->getPC(&pc);
+			_DBGPRT("  PC: 0x%08x\n", pc);
+		}
+	}
+
 	auto _scs = adi.findARMv6MSCS();
 	if (_scs.size() > 0)
 	{

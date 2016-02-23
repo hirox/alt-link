@@ -70,34 +70,6 @@ int32_t ADIv5::Component::readPid()
 	return OK;
 }
 
-enum
-{
-	ARM_PART_SCS_M3			= 0,
-	ARM_PART_ITM_M347		= 1,
-	ARM_PART_DWT_M347		= 2,
-	ARM_PART_FPB_M34		= 3,
-	ARM_PART_CTI_M7			= 6,
-	ARM_PART_SCS_M00P		= 8,
-	ARM_PART_DWT_M00P		= 0xA,
-	ARM_PART_BPU_M00P		= 0xB,
-	ARM_PART_SCS_M47		= 0xC,
-	ARM_PART_FPB_M7			= 0xE,
-	ARM_PART_ECT			= 0x906,
-	ARM_PART_ETB			= 0x907,
-	ARM_PART_TF				= 0x908,
-	ARM_PART_TPIU			= 0x912,
-	ARM_PART_TPIU_M3		= 0x923,
-	ARM_PART_ETM_M4			= 0x925,
-	ARM_PART_PTM_A9			= 0x950,
-	ARM_PART_PMU_A9			= 0x9A0,
-	ARM_PART_TPIU_M4		= 0x9A1,
-	ARM_PART_PMU_A5			= 0x9A5,
-	ARM_PART_DEBUG_IF_A5	= 0xC05,
-	ARM_PART_DEBUG_IF_A8	= 0xC08,
-	ARM_PART_DEBUG_IF_A9	= 0xC09,
-	ARM_PART_DEBUG_IF_R4	= 0xC14,
-};
-
 const char* ADIv5::Component::getName()
 {
 	if (cid.ComponentClass == CID::ROM_TABLE)
@@ -177,6 +149,19 @@ const char* ADIv5::Component::getName()
 	return "UNKNOWN";
 }
 
+bool ADIv5::Component::isARMv7ARDIF()
+{
+	if (cid.ComponentClass == CID::DEBUG_COMPONENT)
+		if (pid.isARM())
+			if (pid.PART == ARM_PART_DEBUG_IF_A5 ||
+				pid.PART == ARM_PART_DEBUG_IF_A8 ||
+				//pid.PART == ARM_PART_DEBUG_IF_A7 ||
+				pid.PART == ARM_PART_DEBUG_IF_A9 ||
+				pid.PART == ARM_PART_DEBUG_IF_R4)
+				return true;
+	return false;
+}
+
 bool ADIv5::Component::isARMv6MSCS()
 {
 	if (cid.ComponentClass == CID::GENERIC_IP)
@@ -232,7 +217,7 @@ bool ADIv5::Component::isRomTable()
 	return false;
 }
 
-int32_t ADIv5::Component::read()
+int32_t ADIv5::Component::readPidCid()
 {
 	int ret;
 
@@ -249,27 +234,41 @@ int32_t ADIv5::Component::read()
 
 void ADIv5::Component::print()
 {
-	_DBGPRT("    PID                 : 0x%016llx\n", pid.raw);
-	_DBGPRT("      Part number       : %x\n", pid.PART);
-	if (pid.JEDEC)
+	getPid().print();
+	getCid().print();
+	printName();
+}
+
+void ADIv5::Component::PID::print()
+{
+	_DBGPRT("    PID                 : 0x%016llx\n", raw);
+	_DBGPRT("      Part number       : %x\n", PART);
+	if (JEDEC)
 	{
 		_DBGPRT("      Designer          : %s (JEP106 CONT.:%x, ID:%x)\n",
-			getJEP106DesignerName(pid.JEP106CONTINUATION, pid.JEP106ID),
-			pid.JEP106CONTINUATION, pid.JEP106ID);
+			getJEP106DesignerName(JEP106CONTINUATION, JEP106ID),
+			JEP106CONTINUATION, JEP106ID);
 	}
-	_DBGPRT("      Revision          : %x\n", pid.REVISION);
-	_DBGPRT("      Manufacturer Rev. : %x\n", pid.REVAND);
-	_DBGPRT("      Customer modified : %x\n", pid.CMOD);
-	_DBGPRT("      Size              : %dKB\n", 4 << pid.SIZE);
+	_DBGPRT("      Revision          : %x\n", REVISION);
+	_DBGPRT("      Manufacturer Rev. : %x\n", REVAND);
+	_DBGPRT("      Customer modified : %x\n", CMOD);
+	_DBGPRT("      Size              : %dKB\n", 4 << SIZE);
+}
 
-	_DBGPRT("    CID     : 0x%08x\n", cid.raw);
+void ADIv5::Component::CID::print()
+{
+	_DBGPRT("    CID     : 0x%08x\n", raw);
 	_DBGPRT("      Class : %s\n",
-		cid.ComponentClass == CID::GENERIC_VERIFICATION ? "Generic verification component" :
-		cid.ComponentClass == CID::ROM_TABLE ? "ROM Table" :
-		cid.ComponentClass == CID::DEBUG_COMPONENT ? "Debug component" :
-		cid.ComponentClass == CID::PERIPHERAL_TEST_BLOCK ? "Peripheral Test Block" :
-		cid.ComponentClass == CID::OPTIMO_DE ? "OptimoDE Data Engine SubSystem(DESS) component" :
-		cid.ComponentClass == CID::GENERIC_IP ? "Generic IP component" :
-		cid.ComponentClass == CID::PRIME_CELL ? "PrimeCell peripheral" : "UNKNOWN");
+		ComponentClass == CID::GENERIC_VERIFICATION ? "Generic verification component" :
+		ComponentClass == CID::ROM_TABLE ? "ROM Table" :
+		ComponentClass == CID::DEBUG_COMPONENT ? "Debug component" :
+		ComponentClass == CID::PERIPHERAL_TEST_BLOCK ? "Peripheral Test Block" :
+		ComponentClass == CID::OPTIMO_DE ? "OptimoDE Data Engine SubSystem(DESS) component" :
+		ComponentClass == CID::GENERIC_IP ? "Generic IP component" :
+		ComponentClass == CID::PRIME_CELL ? "PrimeCell peripheral" : "UNKNOWN");
+}
+
+void ADIv5::Component::printName()
+{
 	_DBGPRT("    NAME    : %s\n", getName());
 }

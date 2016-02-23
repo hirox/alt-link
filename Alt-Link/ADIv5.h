@@ -128,16 +128,34 @@ public:
 	public:
 		Component(const Memory& memory) : Memory(memory) {}
 
-		int32_t read();
-		void print();
-		bool isRomTable();
-		bool isARMv6MSCS();
-		bool isARMv6MDWT();
-		bool isARMv7MDWT();
-		bool isARMv6MBPU();
-		bool isARMv7MFPB();
+		enum
+		{
+			ARM_PART_SCS_M3			= 0,
+			ARM_PART_ITM_M347		= 1,
+			ARM_PART_DWT_M347		= 2,
+			ARM_PART_FPB_M34		= 3,
+			ARM_PART_CTI_M7			= 6,
+			ARM_PART_SCS_M00P		= 8,
+			ARM_PART_DWT_M00P		= 0xA,
+			ARM_PART_BPU_M00P		= 0xB,
+			ARM_PART_SCS_M47		= 0xC,
+			ARM_PART_FPB_M7			= 0xE,
+			ARM_PART_ECT			= 0x906,
+			ARM_PART_ETB			= 0x907,
+			ARM_PART_TF				= 0x908,
+			ARM_PART_TPIU			= 0x912,
+			ARM_PART_TPIU_M3		= 0x923,
+			ARM_PART_ETM_M4			= 0x925,
+			ARM_PART_PTM_A9			= 0x950,
+			ARM_PART_PMU_A9			= 0x9A0,
+			ARM_PART_TPIU_M4		= 0x9A1,
+			ARM_PART_PMU_A5			= 0x9A5,
+			ARM_PART_DEBUG_IF_A5	= 0xC05,
+			ARM_PART_DEBUG_IF_A8	= 0xC08,
+			ARM_PART_DEBUG_IF_A9	= 0xC09,
+			ARM_PART_DEBUG_IF_R4	= 0xC14,
+		};
 
-	private:
 		union CID
 		{
 			enum Class : uint32_t
@@ -162,6 +180,7 @@ public:
 				uint8_t uint8[4];
 			};
 			uint32_t raw;
+			void print();
 		};
 		static_assert(CONFIRM_SIZE(CID, uint32_t));
 
@@ -184,10 +203,24 @@ public:
 				uint8_t uint8[8];
 			};
 			uint64_t raw;
-
+			void print();
 			bool isARM() { return JEP106CONTINUATION == 0x4 && JEP106ID == 0x3B ? true : false; }
 		};
 		static_assert(CONFIRM_SIZE(PID, uint64_t));
+
+		int32_t readPidCid();
+		CID getCid() { return cid; }
+		PID getPid() { return pid; }
+		void print();
+		void printName();
+
+		bool isRomTable();
+		bool isARMv7ARDIF();
+		bool isARMv6MSCS();
+		bool isARMv6MDWT();
+		bool isARMv7MDWT();
+		bool isARMv6MBPU();
+		bool isARMv7MFPB();
 
 	private:
 		CID cid;
@@ -236,6 +269,7 @@ public:
 	};
 
 	std::vector<std::shared_ptr<Component>> find(std::function<bool(Component&)> func);
+	std::vector<std::shared_ptr<Component>> findARMv7ARDIF();
 	std::vector<std::shared_ptr<Component>> findARMv6MSCS();
 	std::vector<std::shared_ptr<Component>> findARMv6MDWT();
 	std::vector<std::shared_ptr<Component>> findARMv7MDWT();
@@ -245,5 +279,6 @@ public:
 
 private:
 	std::vector<std::pair<std::shared_ptr<MEM_AP>, ROM_TABLE>> memAps;
+	std::vector<std::shared_ptr<MEM_AP>> ahbSysmemAps;
 	DAP& dap;
 };

@@ -422,12 +422,17 @@ int32_t ADIv5::scanAPs()
 			}
 
 			if (!hasDebugEntry)
+			{
+				// Debug Entry なしの AHB bus は sysmem なので登録する
+				if (idr.isAHB())
+					ahbSysmemAps.push_back(std::make_shared<MEM_AP>(i, ap));
 				continue;
+			}
 
 			std::shared_ptr<MEM_AP> memAp = std::make_shared<MEM_AP>(i, ap);
 			std::shared_ptr<Component> component = std::make_shared<Component>(Memory(*memAp, base & 0xFFFFF000));
 
-			ret = component->read();
+			ret = component->readPidCid();
 			if (ret != OK)
 			{
 				_ERRPRT("Failed to read ROM Table\n");
@@ -841,7 +846,7 @@ int32_t ADIv5::ROM_TABLE::read()
 			{
 				std::shared_ptr<Component> child = std::make_shared<Component>(Memory(component->ap, entryAddr));
 				
-				ret = child->read();
+				ret = child->readPidCid();
 				if (ret != OK)
 				{
 					_DBGPRT("    Failed to read child component\n");
@@ -899,6 +904,13 @@ std::vector<std::shared_ptr<ADIv5::Component>> ADIv5::find(std::function<bool(Co
 	return v;
 }
 
+std::vector<std::shared_ptr<ADIv5::Component>> ADIv5::findARMv7ARDIF()
+{
+	return find([](Component& component) {
+		return component.isARMv7ARDIF() ? true : false;
+	});
+}
+
 std::vector<std::shared_ptr<ADIv5::Component>> ADIv5::findARMv6MSCS()
 {
 	return find([](Component& component) {
@@ -943,5 +955,7 @@ std::vector<std::shared_ptr<ADIv5::MEM_AP>> ADIv5::findSysmem()
 		if (ap.second.isSysmem())
 			v.push_back(ap.first);
 	}
+	for (auto ap : ahbSysmemAps)
+		v.push_back(ap);
 	return v;
 }

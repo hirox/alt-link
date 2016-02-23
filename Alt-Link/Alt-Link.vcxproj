@@ -136,6 +136,7 @@
     <Text Include="ReadMe.txt" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="ARMv7ARDIF.h" />
     <ClInclude Include="ADIv5.h" />
     <ClInclude Include="ARMv6MBPU.h" />
     <ClInclude Include="ARMv6MDWT.h" />
@@ -154,6 +155,7 @@
     <ClInclude Include="targetver.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="ARMv7ARDIF.cpp" />
     <ClCompile Include="ADIv5.cpp" />
     <ClCompile Include="ADIv5TI.cpp" />
     <ClCompile Include="ARMv6MBPU.cpp" />
