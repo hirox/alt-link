@@ -772,6 +772,11 @@ int32_t CMSISDAP::resetJtagTap()
 		}
 	}
 
+	// go to run-test idle
+	ret = sendTms(1, 0);
+	if (ret != OK)
+		return ret;
+
 	return OK;
 }
 
@@ -861,9 +866,6 @@ int32_t CMSISDAP::getJtagIDCODEs(std::vector<JTAG_IDCODE>* idcodes)
 		return ret;
 
 	// go to Shift-DR
-	ret = sendTms(1, 0);
-	if (ret != OK)
-		return ret;
 	ret = sendTms(1, 1);
 	if (ret != OK)
 		return ret;
@@ -906,35 +908,36 @@ int32_t CMSISDAP::scanJtagDevices()
 	{
 		auto idcode = jtagIDCODEs[i];
 
-		_DBGPRT("Index: %d\n", i);
+		_DBGPRT("  Index: %d\n", i);
 		if (idcode.RAO)
-			_DBGPRT("  Designer: %s (%x)\n", getJEP106DesignerName(idcode.DESIGNER >> 7, idcode.DESIGNER & 0x7F), idcode.DESIGNER);
+			_DBGPRT("    Designer: %s (%x)\n", getJEP106DesignerName(idcode.DESIGNER >> 7, idcode.DESIGNER & 0x7F), idcode.DESIGNER);
 		else
-			_DBGPRT("  Designer: UNKNOWN (%x,%x)\n", idcode.DESIGNER, idcode.raw);
+			_DBGPRT("    Designer: UNKNOWN (%x,%x)\n", idcode.DESIGNER, idcode.raw);
 
 		if (idcode.isARM())
 		{
 			if (idcode.PARTNO == 0xBA00)
 			{
-				_DBGPRT("  Device  : JTAG-DP (VER.%d) (0x%08x)\n", idcode.VERSION, idcode.raw);
+				_DBGPRT("    Device  : JTAG-DP (VER.%d) (0x%08x)\n", idcode.VERSION, idcode.raw);
+				setDapIndex(i);
 				jtagIrLength.push_back(4);
 			}
 			else if (idcode.PARTNO == 0xBA01)
 			{
 				// SW-DP のようだけど JTAG-DP みたい
-				_DBGPRT("  Device  : JTAG-DP (VER.%d) (0x%08x)\n", idcode.VERSION, idcode.raw);
+				_DBGPRT("    Device  : JTAG-DP (VER.%d) (0x%08x)\n", idcode.VERSION, idcode.raw);
 				jtagIrLength.push_back(4);
 			}
 #if 0
 			else if (idcode.PARTNO == 0xBA02)
 			{
-				_DBGPRT("  Device  : SW-DP Multidrop support (VER.%d) (0x%08x)\n", idcode.VERSION, idcode.raw);
+				_DBGPRT("    Device  : SW-DP Multidrop support (VER.%d) (0x%08x)\n", idcode.VERSION, idcode.raw);
 				jtagIrLength.push_back(4);
 			}
 #endif
 			else
 			{
-				_DBGPRT("  Device  : Unknown (PARTNO %x, VER.%d) (0x%08x)\n", idcode.PARTNO, idcode.VERSION, idcode.raw);
+				_DBGPRT("    Device  : Unknown (PARTNO %x, VER.%d) (0x%08x)\n", idcode.PARTNO, idcode.VERSION, idcode.raw);
 				jtagIrLength.push_back(4);
 			}
 		}
@@ -943,20 +946,30 @@ int32_t CMSISDAP::scanJtagDevices()
 			switch (idcode.PARTNO)
 			{
 			case 0x7B37:
-				_DBGPRT("  Device  : ARM ARM11 MPCore (REV.%d) (0x%08x)\n", idcode.VERSION, idcode.raw);
+				_DBGPRT("    Device  : ARM ARM11 MPCore (REV.%d) (0x%08x)\n", idcode.VERSION, idcode.raw);
 				jtagIrLength.push_back(5);
 			case 0x5966:
-				_DBGPRT("  Device  : ARM ARM966E-S (REV.%d) (0x%08x)\n", idcode.VERSION, idcode.raw);
+				_DBGPRT("    Device  : ARM ARM966E-S (REV.%d) (0x%08x)\n", idcode.VERSION, idcode.raw);
 				jtagIrLength.push_back(4);
 				break;
 			}
 		}
 		else
 		{
-			_DBGPRT("  Device  : Unknown (PARTNO %x, VER.%d) (0x%08x)\n", idcode.PARTNO, idcode.VERSION, idcode.raw);
+			_DBGPRT("    Device  : Unknown (PARTNO %x, VER.%d) (0x%08x)\n", idcode.PARTNO, idcode.VERSION, idcode.raw);
 			jtagIrLength.push_back(4);
 		}
 	}
+
+	if (jtagIrLength.size() > 0)
+	{
+		cmdJtagConfigure(jtagIrLength);
+	}
+
+	ret = resetJtagTap();
+	if (ret != OK)
+		return ret;
+
 	return OK;
 }
 
@@ -977,6 +990,37 @@ int32_t CMSISDAP::sendTms(uint8_t cycles, uint8_t tms, uint8_t tdi, uint8_t* tdo
 	info.TMS = tms ? 1 : 0;
 	info.TDO = tdo ? 1 : 0;
 	return cmdJtagSequence(info, in, tdo);
+}
+
+int32_t CMSISDAP::cmdJtagConfigure(const std::vector<uint8_t>& irLength)
+{
+	if (irLength.size() < 1 || irLength.size() > 60)
+		return CMSISDAP_ERR_INVALID_ARGUMENT;
+
+	TxPacket tx;
+	tx.write(_USB_HID_REPORT_NUM);
+	tx.write(CMD_JTAG_CONFIGURE);
+	tx.write(irLength.size());
+	for (auto len : irLength)
+	{
+		tx.write(len);
+	}
+
+	RxPacket rx;
+	int ret = usbTxRx(tx, &rx);
+	if (ret != OK)
+	{
+		_DBGPRT("err ret=%08x %s %s %d\n", ret, __FUNCTION__, __FILE__, __LINE__);
+		return ret;
+	}
+	uint8_t* rxdata = rx.data();
+	if (rxdata[1] != _DAP_RES_OK)
+	{
+		ret = CMSISDAP_ERR_DAP_RES;
+		_DBGPRT("err ret=%08x %s %s %d\n", ret, __FUNCTION__, __FILE__, __LINE__);
+	}
+
+	return ret;
 }
 
 int32_t CMSISDAP::cmdJtagSequence(SequenceInfo info, uint8_t* in, uint8_t* out)
@@ -1128,6 +1172,8 @@ int32_t CMSISDAP::setConnectionType(ConnectionType type)
 		ret = cmdConnect(DAP_MODE_JTAG);
 		if (ret != OK)
 			return ret;
+
+		connectionType = JTAG;
 	}
 	else if (type == SWJ_JTAG)
 	{
@@ -1142,6 +1188,8 @@ int32_t CMSISDAP::setConnectionType(ConnectionType type)
 			_ERRPRT("Failed to switch to JTAG mode. (0x%08x)\n", ret);
 			return ret;
 		}
+
+		connectionType = SWJ_JTAG;
 	}
 	else if (type == SWJ_SWD)
 	{
@@ -1160,6 +1208,8 @@ int32_t CMSISDAP::setConnectionType(ConnectionType type)
 			_ERRPRT("Failed to switch to SWD mode. (0x%08x)\n", ret);
 			return ret;
 		}
+
+		connectionType = SWJ_SWD;
 	}
 
 	return OK;
@@ -1238,6 +1288,7 @@ int32_t CMSISDAP::dpapRead(bool dp, uint32_t reg, uint32_t *data)
 	tx.write(dapIndex);	/* DAP Index, ignored in the swd. */
 	tx.write(0x01);	/* Tx count */
 	tx.write(req.raw[0]);
+	tx.write32(0);
 
 	RxPacket rx;
 	int ret = usbTxRx(tx, &rx);
@@ -1245,6 +1296,10 @@ int32_t CMSISDAP::dpapRead(bool dp, uint32_t reg, uint32_t *data)
 		return ret;
 
 	uint8_t* rxdata = rx.data();
+
+	if (rxdata[1] == 0)
+		return CMSISDAP_ERR_ACKFAULT;
+
 	switch (rxdata[2] & TX_ACK_MASK)
 	{
 	case TX_ACK_NO_ACK:

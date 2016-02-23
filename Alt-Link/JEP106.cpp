@@ -60,5 +60,15 @@ const char* getJEP106DesignerName(uint32_t continuation, uint32_t id)
 			return "UNKNOWN(0)";
 		}
 	}
+	else if (continuation == 0x0F)
+	{
+		switch (id)
+		{
+		case 0x07:
+			return "ARM";
+		default:
+			return "UNKNOWN(F)";
+		}
+	}
 	return "UNKNOWN";
 }

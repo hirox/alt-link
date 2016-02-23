@@ -31,21 +31,13 @@ public:
 	virtual int32_t dpWrite(uint32_t reg, uint32_t val);
 	virtual int32_t apRead(uint32_t reg, uint32_t *data);
 	virtual int32_t apWrite(uint32_t reg, uint32_t val);
+	virtual int32_t setConnectionType(ConnectionType type);
 
 public:
 	enum LED {
 		CONNECT = 0,
 		RUNNING = 1
 	};
-	
-	enum ConnectionType
-	{
-		JTAG,
-		SWJ_JTAG,
-		SWJ_SWD
-	};
-
-	int32_t setConnectionType(ConnectionType type);
 
 	int32_t cmdSwjPins(uint8_t value, uint8_t pin, uint32_t delay, uint8_t *input);
 	int32_t cmdSwjClock(uint32_t clock);
@@ -142,7 +134,7 @@ private:
 
 	// JTAG
 	std::vector<JTAG_IDCODE> jtagIDCODEs;
-	std::vector<uint32_t> jtagIrLength;
+	std::vector<uint8_t> jtagIrLength;
 
 	class TxPacket
 	{
@@ -201,6 +193,7 @@ private:
 	// JTAG
 	int32_t getJtagIDCODEs(std::vector<JTAG_IDCODE>* idcodes);
 	int32_t findJtagDevices(uint32_t* num);
+	int32_t cmdJtagConfigure(const std::vector<uint8_t>& irLength);
 	int32_t cmdJtagSequence(SequenceInfo info, uint8_t* in, uint8_t* out);
 	int32_t resetJtagTap();
 	int32_t sendTms(uint8_t cycles, uint8_t tms, uint8_t tdi = 0, uint8_t* tdo = nullptr);

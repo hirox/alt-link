@@ -55,28 +55,29 @@ private:
 	static_assert(CONFIRM_UINT32(DP_CTRL_STAT));
 
 public:
-	ADIv5(DAP& _dap) : dap(_dap), ap(_dap) {}
+	ADIv5(DAP& _dap) : dap(_dap), ap(*this, _dap) {}
 
 	int32_t getIDCODE(DP_IDCODE* idcode);
 	int32_t getCtrlStat(DP_CTRL_STAT* ctrlStat);
 	int32_t setCtrlStat(DP_CTRL_STAT& ctrlStat);
+	errno_t clearError();
 	int32_t powerupDebug();
 	int32_t scanAPs();
 
 	class AP
 	{
 	public:
-		AP(DAP& _dap) : dap(_dap) {}
+		AP(ADIv5& _adi, DAP& _dap) : adi(_adi), dap(_dap) {}
 		int32_t read(uint32_t ap, uint32_t reg, uint32_t *data);
 		int32_t write(uint32_t ap, uint32_t reg, uint32_t val);
 
 	private:
+		ADIv5& adi;
 		DAP& dap;
 		uint32_t lastAp = 0;
 		uint32_t lastApBank = 0;
 
 		int32_t select(uint32_t ap, uint32_t reg);
-		errno_t clearError();
 		errno_t checkStatus(uint32_t ap);
 	} ap;
 

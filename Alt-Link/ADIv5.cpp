@@ -249,7 +249,7 @@ void ADIv5::DP_CTRL_STAT::print()
 	_DBGPRT("    SYS PWR UP REQ: %x ACK: %x\n", CSYSPWRUPREQ, CSYSPWRUPACK);
 	_DBGPRT("    DBG PWR UP REQ: %x ACK: %x RST REQ: %x RST ACK:%x\n",
 		CDBGPWRUPREQ, CDBGPWRUPACK, CDBGRSTREQ, CDBGRSTACK);
-	_DBGPRT("    TRNCNT: 0x%04x MASKLANE: 0x%02x\n", TRNCNT, MASKLANE);
+	_DBGPRT("    Transaction Counter: 0x%04x MASKLANE: 0x%02x\n", TRNCNT, MASKLANE);
 	_DBGPRT("    STICKYERR: %x STICKYCMP: %x STICKYORUN: %x TRNMODE: %x ORUNDETECT: %x\n",
 		STICKYERR, STICKYCMP, STICKYORUN, TRNMODE, ORUNDETECT);
 	_DBGPRT("    (SWD) Write Data Error: %x Read OK: %x\n", WDATAERR, READOK);
@@ -263,6 +263,13 @@ int32_t ADIv5::powerupDebug()
 		return ret;
 
 	ctrlStat.print();
+
+	if (ctrlStat.STICKYERR || ctrlStat.WDATAERR)
+	{
+		ret = clearError();
+		if (ret != OK)
+			return ret;
+	}
 
 	// CDBGPWRUPACK が立っていない場合は電源を入れる
 	if (!ctrlStat.CDBGPWRUPACK)
@@ -290,6 +297,9 @@ int32_t ADIv5::powerupDebug()
 
 			std::this_thread::sleep_for(std::chrono::milliseconds(1));
 		}
+
+		_DBGPRT("DBG Power up\n");
+		ctrlStat.print();
 	}
 	return OK;
 }
@@ -370,13 +380,27 @@ int32_t ADIv5::scanAPs()
 
 		if (idr.Class == AP_IDR::MemoryAccessPort)
 		{
+			bool hasDebugEntry = false;
 			uint32_t base;
 			ret = ap.read(i, MEM_AP_REG_BASE, &base);
 			if (ret != OK) {
 				return ret;
 			}
 			_DBGPRT("    BASE : 0x%08x (%x)\n", base & 0xFFFFF000, base);
-			_DBGPRT("      Debug entry : %s\n", base & 0x1 ? "present" : "no");
+			if (base == 0xFFFFFFFF)
+			{
+				_DBGPRT("      Debug entry : no (legacy format)\n");
+			}
+			else if ((base & 0x02) == 0)
+			{
+				_DBGPRT("      Debug entry : present (legacy format)\n");
+				hasDebugEntry = true;
+			}
+			else
+			{
+				_DBGPRT("      Debug entry : %s\n", base & 0x1 ? "present" : "no");
+				hasDebugEntry = (base & 0x1) ? true : false;
+			}
 
 			if (idr.isAHB())
 			{
@@ -397,6 +421,9 @@ int32_t ADIv5::scanAPs()
 				csw.print();
 			}
 
+			if (!hasDebugEntry)
+				continue;
+
 			std::shared_ptr<MEM_AP> memAp = std::make_shared<MEM_AP>(i, ap);
 			std::shared_ptr<Component> component = std::make_shared<Component>(Memory(*memAp, base & 0xFFFFF000));
 
@@ -416,6 +443,24 @@ int32_t ADIv5::scanAPs()
 			{
 				_DBGPRT("ROM Table was not found\n");
 			}
+
+#if 0
+			if (i == 1)
+			{
+				for (auto j : {0, 1, 2, 3, 4, 5})
+				{
+					uint32_t pc;
+					memAp->read(0xf7b30084, &pc);
+					_DBGPRT("CPU0 PC: 0x%08x\n", pc);
+					memAp->read(0xf7b32084, &pc);
+					_DBGPRT("CPU1  PC: 0x%08x\n", pc);
+					memAp->read(0xf7b34084, &pc);
+					_DBGPRT("CPU2   PC: 0x%08x\n", pc);
+					memAp->read(0xf7b36084, &pc);
+					_DBGPRT("CPU3    PC: 0x%08x\n", pc);
+				}
+			}
+#endif
 		}
 	}
 	return OK;
@@ -446,10 +491,10 @@ int32_t ADIv5::AP::select(uint32_t ap, uint32_t reg)
 	return OK;
 }
 
-errno_t ADIv5::AP::clearError()
+errno_t ADIv5::clearError()
 {
 	DP_CTRL_STAT ctrlStat;
-	errno_t ret = dap.dpRead(DP_REG_CTRL_STAT, &ctrlStat.raw);
+	errno_t ret = getCtrlStat(&ctrlStat);
 	if (ret != OK)
 		return ret;
 
@@ -461,18 +506,30 @@ errno_t ADIv5::AP::clearError()
 			_DBGPRT("Protocol Error is detected. ");
 		_DBGPRT("Trying to clear... ");
 
-		DP_ABORT abort;
-		abort.raw = 0;
-		abort.STKERRCLR = 1;
-		abort.WDERRCLR = 1;
-		ret = dap.dpWrite(DP_REG_ABORT, abort.raw);
-		if (ret != OK)
+		if (dap.getConnectionType() == DAP::JTAG)
 		{
-			_DBGPRT("FAILED. (write)\n");
-			return ret;
+			ret = setCtrlStat(ctrlStat);
+			if (ret != OK)
+			{
+				_DBGPRT("FAILED. (write)\n");
+				return ret;
+			}
+		}
+		else
+		{
+			DP_ABORT abort;
+			abort.raw = 0;
+			abort.STKERRCLR = 1;
+			abort.WDERRCLR = 1;
+			ret = dap.dpWrite(DP_REG_ABORT, abort.raw);
+			if (ret != OK)
+			{
+				_DBGPRT("FAILED. (write)\n");
+				return ret;
+			}
 		}
 
-		ret = dap.dpRead(DP_REG_CTRL_STAT, &ctrlStat.raw);
+		ret = getCtrlStat(&ctrlStat);
 		if (ret != OK)
 		{
 			_DBGPRT("FAILED. (read)\n");
@@ -490,7 +547,7 @@ errno_t ADIv5::AP::clearError()
 errno_t ADIv5::AP::checkStatus(uint32_t ap)
 {
 	// clear error and retry
-	errno_t ret = clearError();
+	errno_t ret = adi.clearError();
 	if (ret != OK)
 		return ret;
 

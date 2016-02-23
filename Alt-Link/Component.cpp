@@ -72,19 +72,30 @@ int32_t ADIv5::Component::readPid()
 
 enum
 {
-	ARM_PART_SCS_M3		= 0,
-	ARM_PART_ITM_M347	= 1,
-	ARM_PART_DWT_M347	= 2,
-	ARM_PART_FPB_M34	= 3,
-	ARM_PART_CTI_M7		= 6,
-	ARM_PART_SCS_M00P	= 8,
-	ARM_PART_DWT_M00P	= 0xA,
-	ARM_PART_BPU_M00P	= 0xB,
-	ARM_PART_SCS_M47	= 0xC,
-	ARM_PART_FPB_M7		= 0xE,
-	ARM_PART_TPIU_M3	= 0x923,
-	ARM_PART_ETM_M4		= 0x925,
-	ARM_PART_TPIU_M4	= 0x9A1
+	ARM_PART_SCS_M3			= 0,
+	ARM_PART_ITM_M347		= 1,
+	ARM_PART_DWT_M347		= 2,
+	ARM_PART_FPB_M34		= 3,
+	ARM_PART_CTI_M7			= 6,
+	ARM_PART_SCS_M00P		= 8,
+	ARM_PART_DWT_M00P		= 0xA,
+	ARM_PART_BPU_M00P		= 0xB,
+	ARM_PART_SCS_M47		= 0xC,
+	ARM_PART_FPB_M7			= 0xE,
+	ARM_PART_ECT			= 0x906,
+	ARM_PART_ETB			= 0x907,
+	ARM_PART_TF				= 0x908,
+	ARM_PART_TPIU			= 0x912,
+	ARM_PART_TPIU_M3		= 0x923,
+	ARM_PART_ETM_M4			= 0x925,
+	ARM_PART_PTM_A9			= 0x950,
+	ARM_PART_PMU_A9			= 0x9A0,
+	ARM_PART_TPIU_M4		= 0x9A1,
+	ARM_PART_PMU_A5			= 0x9A5,
+	ARM_PART_DEBUG_IF_A5	= 0xC05,
+	ARM_PART_DEBUG_IF_A8	= 0xC08,
+	ARM_PART_DEBUG_IF_A9	= 0xC09,
+	ARM_PART_DEBUG_IF_R4	= 0xC14,
 };
 
 const char* ADIv5::Component::getName()
@@ -134,6 +145,28 @@ const char* ADIv5::Component::getName()
 				return "Cortex-M4 ETM (Embedded Trace Macrocell)";
 			case ARM_PART_TPIU_M4:
 				return "Cortex-M4 TPIU (Trace Port Interface Unit)";
+			case ARM_PART_ECT:
+				return "CoreSight ECT (Embedded Cross Trigger)";
+			case ARM_PART_ETB:
+				return "CoreSight ETB (Embedded Trace Buffer)";
+			case ARM_PART_TF:
+				return "CoreSight TF (Trace Funnel)";
+			case ARM_PART_TPIU:
+				return "CoreSight TPIU (Trace Port Interface Unit)";
+			case ARM_PART_PMU_A5:
+				return "Coretex-A5 CoreSight PMU (Performance Monitoring Unit)";
+			case ARM_PART_PMU_A9:
+				return "Coretex-A9 CoreSight PMU (Performance Monitoring Unit)";
+			case ARM_PART_PTM_A9:
+				return "Coretex-A9 CoreSight PTM (Program flow Trace Macrocell)";
+			case ARM_PART_DEBUG_IF_A5:
+				return "Cortex-A5 Debug Interface";
+			case ARM_PART_DEBUG_IF_A8:
+				return "Cortex-A8 Debug Interface";
+			case ARM_PART_DEBUG_IF_A9:
+				return "Cortex-A9 Debug Interface";
+			case ARM_PART_DEBUG_IF_R4:
+				return "Cortex-R4 Debug Interface";
 			}
 		}
 
