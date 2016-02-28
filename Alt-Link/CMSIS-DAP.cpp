@@ -1000,7 +1000,7 @@ int32_t CMSISDAP::cmdJtagConfigure(const std::vector<uint8_t>& irLength)
 	TxPacket tx;
 	tx.write(_USB_HID_REPORT_NUM);
 	tx.write(CMD_JTAG_CONFIGURE);
-	tx.write(irLength.size());
+	tx.write((uint8_t)irLength.size());
 	for (auto len : irLength)
 	{
 		tx.write(len);
