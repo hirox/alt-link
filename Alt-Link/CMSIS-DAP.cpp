@@ -140,12 +140,6 @@ int32_t CMSISDAP::usbOpen(void)
 	vid = usbVID;
 	pid = usbPID;
 
-	packetBuf = (uint8_t *)malloc(packetMaxSize);
-	if (packetBuf == NULL)
-	{
-		return CMSISDAP_ERR_NO_MEMORY;
-	}
-
 	return OK;
 }
 
@@ -156,40 +150,6 @@ int32_t CMSISDAP::usbClose(void)
 	{
 		return CMSISDAP_ERR_USBHID_EXIT;
 	}
-	return OK;
-}
-
-int32_t CMSISDAP::usbTx(uint32_t txlen)
-{
-	int ret;
-#if USE_USB_TX_DBG
-	uint8_t *buf = packetBuf;
-#endif /* USE_USB_TX_DBG */
-
-	if (packetMaxSize - 1u < txlen) {
-		return CMSISDAP_ERR_INVALID_TX_LEN;
-	}
-
-	memset(packetBuf + txlen, 0, packetMaxSize - 1 - txlen);
-
-#if USE_USB_TX_DBG
-	_DBGPRT("A %02x %02x %02x %02x %02x %02x %02x %02x\n",
-		buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7], buf[8]);
-#endif /* USE_USB_TX_DBG */
-	ret = hid_write(hidHandle, packetBuf, packetMaxSize);
-	if (ret == -1) {
-		return CMSISDAP_ERR_USBHID_WRITE;
-	}
-
-	ret = hid_read_timeout(hidHandle, packetBuf, packetMaxSize, _CMSISDAP_USB_TIMEOUT);
-	if (ret == -1 || ret == 0) {
-		return CMSISDAP_ERR_USBHID_TIMEOUT;
-	}
-#if USE_USB_TX_DBG
-	_DBGPRT("B %02x %02x %02x %02x %02x %02x %02x %02x\n",
-		buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7]);
-#endif /* USE_USB_TX_DBG */
-
 	return OK;
 }
 
@@ -1234,11 +1194,6 @@ int32_t CMSISDAP::finalize(void)
 	if (ret != OK) {
 		return ret;
 	}
-
-	if (packetBuf != NULL) {
-		free(packetBuf);
-	}
-
 	return ret;
 }
 

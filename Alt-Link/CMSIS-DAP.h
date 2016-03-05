@@ -119,7 +119,6 @@ private:
 	static_assert(CONFIRM_UINT32(JTAG_IDCODE));
 
 	hid_device *hidHandle;
-	uint8_t *packetBuf;
 	std::string fwver;
 	std::string name;
 	std::string vendor;
@@ -169,7 +168,6 @@ private:
 
 	int32_t usbOpen();
 	int32_t usbClose();
-	int32_t usbTx(uint32_t txlen);
 	int32_t usbTx(const TxPacket& packet);
 	int32_t usbRx(RxPacket* rx);
 	int32_t usbTxRx(const TxPacket& tx, RxPacket* rx);
