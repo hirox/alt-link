@@ -51,6 +51,7 @@ public:
 	virtual errno_t writeGenericRegisters(const std::vector<uint32_t>& array) = 0;
 
 	virtual errno_t readMemory(uint64_t addr, uint32_t len, std::vector<uint8_t>* array) = 0;
+	virtual errno_t readMemory(uint64_t addr, uint32_t len, std::vector<uint32_t>* array) = 0;
 	virtual errno_t writeMemory(uint64_t addr, uint32_t len, const std::vector<uint8_t>& array) = 0;
 
 	virtual errno_t monitor(const std::string command, std::string* output) = 0;

@@ -5,8 +5,12 @@
 #define _DBGPRT printf
 
 #define REG_DBGDIDR		(base + 0x000)
-#define REG_DBGDSCR		(base + 0x088)
-#define REG_DBGPCSR_33	(base + 0x084)
+#define REG_DBGDTRRX	(base + 0x080)	/* 32 */
+#define REG_DBGDTRTX	(base + 0x08C)	/* 35 */
+#define REG_DBGDSCR		(base + 0x088)	/* 34 */
+#define REG_DBGITR		(base + 0x084)	/* 33 */
+#define REG_DBGPCSR_33	(base + 0x084)	/* 33 */
+#define REG_DBGDRCR		(base + 0x090)
 #define REG_DBGPCSR_40	(base + 0x0A0)
 #define REG_MIDR		(base + 0xD00)
 #define REG_MPIDR		(base + 0xD14)
@@ -36,18 +40,34 @@ union DBGDSCR
 		uint32_t ADAdiscard		: 1;
 		uint32_t ExtDCCmode		: 2;
 		uint32_t ZERO_0			: 2;
-		uint32_t InstrComp1_1	: 1;
+		uint32_t InstrCompl_l	: 1;
 		uint32_t PipeAdv		: 1;
-		uint32_t TXfull_1		: 1;
-		uint32_t RXfull_1		: 1;
+		uint32_t TXfull_l		: 1;
+		uint32_t RXfull_l		: 1;
 		uint32_t ZERO_1			: 1;
 		uint32_t TXfull			: 1;
 		uint32_t RXfull			: 1;
 		uint32_t ZERO_2			: 1;
 	};
 	uint32_t raw;
+	void print();
 };
 static_assert(CONFIRM_UINT32(DBGDSCR));
+
+union DBGDRCR
+{
+	struct
+	{
+		uint32_t HRQ	: 1;
+		uint32_t RRQ	: 1;
+		uint32_t CSE	: 1;
+		uint32_t CSPA	: 1;
+		uint32_t CBRRQ	: 1;
+		uint32_t SBZ	: 27;
+	};
+	uint32_t raw;
+};
+static_assert(CONFIRM_UINT32(DBGDRCR));
 
 union DBGPCSR
 {
@@ -59,6 +79,11 @@ union DBGPCSR
 	uint32_t raw;
 };
 static_assert(CONFIRM_UINT32(DBGPCSR));
+
+void DBGDSCR::print()
+{
+	_DBGPRT("  DSCR: 0x%08x\n", raw);
+}
 
 void ARMv7ARDIF::MPIDR::print()
 {
@@ -140,8 +165,74 @@ errno_t ARMv7ARDIF::init(uint32_t _PART)
 	return OK;
 }
 
+errno_t ARMv7ARDIF::readReg(uint32_t reg, uint32_t* data)
+{
+	if (data == nullptr)
+		return EINVAL;
+
+	if (reg > 14)
+		return EINVAL;
+
+	// MCR p14, 0, Rd, c0, c5, 0
+	errno_t ret = writeITR(0xEE000E15 + (reg << 12));
+	if (ret != OK)
+		return ret;
+
+	ret = readDCC(data);
+	if (ret != OK)
+		return ret;
+
+	return OK;
+}
+
+errno_t ARMv7ARDIF::writeReg(uint32_t reg, uint32_t data)
+{
+	if (reg > 14)
+		return EINVAL;
+
+	errno_t ret = writeDCC(data);
+	if (ret != OK)
+		return ret;
+
+	// MRC p14, 0, Rd, c0, c5, 0
+	ret = writeITR(0xEE100E15 + (reg << 12));
+	if (ret != OK)
+		return ret;
+
+	return OK;
+}
+
 errno_t ARMv7ARDIF::getPC(uint32_t *pc)
 {
+	if (pc == nullptr)
+		return EINVAL;
+
+	uint32_t r0 = 0;
+	errno_t ret = readReg(0, &r0);
+	if (ret != OK)
+		return ret;
+
+	// MOV r0, pc
+	ret = writeITR(0xE1A0000F);
+	if (ret != OK)
+		return ret;
+
+	ret = readReg(0, pc);
+	if (ret != OK)
+		return ret;
+
+	ret = writeReg(0, r0);
+	if (ret != OK)
+		return ret;
+
+	return OK;
+}
+
+errno_t ARMv7ARDIF::getPCSR(uint32_t *pc)
+{
+	if (pc == nullptr)
+		return EINVAL;
+
 	errno_t ret;
 	bool found = false;
 	bool offset = true;
@@ -220,5 +311,204 @@ errno_t ARMv7ARDIF::getPC(uint32_t *pc)
 		else
 			*pc = (pcsr.PCS << 1);
 	}
+	return OK;
+}
+
+void ARMv7ARDIF::printDSCR()
+{
+	DBGDSCR dscr;
+	errno_t ret = readDSCR(&dscr);
+	if (ret != OK)
+	{
+		_DBGPRT("  Failed to read DSCR. (0x%08x)\n", ret);
+		return;
+	}
+	dscr.print();
+}
+
+errno_t ARMv7ARDIF::readDSCR(DBGDSCR* dscr)
+{
+	if (dscr == nullptr)
+		return EINVAL;
+
+	errno_t ret = ap.read(REG_DBGDSCR, &dscr->raw);
+	if (ret != OK)
+		return ret;
+}
+
+errno_t ARMv7ARDIF::halt()
+{
+	DBGDSCR dscr;
+	errno_t ret = ap.read(REG_DBGDSCR, &dscr.raw);
+	if (ret != OK)
+		return ret;
+
+	if (dscr.HALTED)
+		return OK;
+
+	DBGDRCR drcr = { 0 };
+	drcr.HRQ = 1;
+	ret = ap.write(REG_DBGDRCR, drcr.raw);
+	if (ret != OK)
+		return ret;
+
+	uint32_t counter = 0;
+	while (1)
+	{
+		errno_t ret = ap.read(REG_DBGDSCR, &dscr.raw);
+		if (ret != OK)
+			return ret;
+
+		if (dscr.HALTED)
+		{
+			if (dscr.ITRen == 0)
+			{
+				dscr.ITRen = 1;
+				ret = ap.write(REG_DBGDSCR, dscr.raw);
+				if (ret != OK)
+					return ret;
+			}
+			break;
+		}
+
+		counter++;
+		if (counter >= 100)
+		{
+			_DBGPRT("Failed to halt. (0x%08x)\n", dscr.raw);
+			return EFAULT;
+		}
+	}
+	return OK;
+}
+
+errno_t ARMv7ARDIF::run()
+{
+	// TODO
+	DBGDSCR dscr;
+	errno_t ret = ap.read(REG_DBGDSCR, &dscr.raw);
+	if (ret != OK)
+		return ret;
+
+	if (dscr.HALTED == 0)
+		return OK;
+
+	if (dscr.ITRen)
+	{
+		dscr.ITRen = 0;
+		ret = ap.write(REG_DBGDSCR, dscr.raw);
+		if (ret != OK)
+			return ret;
+	}
+
+	DBGDRCR drcr = { 0 };
+	drcr.RRQ = 1;
+	ret = ap.write(REG_DBGDRCR, drcr.raw);
+	if (ret != OK)
+		return ret;
+
+	uint32_t counter = 0;
+	while (1)
+	{
+		errno_t ret = ap.read(REG_DBGDSCR, &dscr.raw);
+		if (ret != OK)
+			return ret;
+
+		if (dscr.HALTED == 0)
+			break;
+
+		counter++;
+		if (counter >= 100)
+		{
+			_DBGPRT("Failed to restart. (0x%08x)\n", dscr.raw);
+			return EFAULT;
+		}
+	}
+	return OK;
+}
+
+errno_t ARMv7ARDIF::readDCC(uint32_t* val)
+{
+	if (val == nullptr)
+		return EINVAL;
+
+	uint32_t counter = 0;
+	while (1)
+	{
+		DBGDSCR dscr;
+		errno_t ret = ap.read(REG_DBGDSCR, &dscr.raw);
+		if (ret != OK)
+			return ret;
+
+		if (dscr.TXfull)
+			break;
+
+		counter++;
+		if (counter >= 100)
+		{
+			_DBGPRT("DTR TX is not full. (0x%08x)\n", dscr.raw);
+			return EFAULT;
+		}
+	}
+
+	errno_t ret = ap.read(REG_DBGDTRTX, val);
+	if (ret != OK)
+		return ret;
+
+	return OK;
+}
+
+errno_t ARMv7ARDIF::writeDCC(uint32_t val)
+{
+	uint32_t counter = 0;
+	while (1)
+	{
+		DBGDSCR dscr;
+		errno_t ret = ap.read(REG_DBGDSCR, &dscr.raw);
+		if (ret != OK)
+			return ret;
+
+		if (dscr.RXfull == 0)
+			break;
+
+		counter++;
+		if (counter >= 100)
+		{
+			_DBGPRT("DTR RX is full. (0x%08x)\n", dscr.raw);
+			return EFAULT;
+		}
+	}
+
+	errno_t ret = ap.write(REG_DBGDTRRX, val);
+	if (ret != OK)
+		return ret;
+
+	return OK;
+
+}
+
+errno_t ARMv7ARDIF::writeITR(uint32_t val)
+{
+	uint32_t counter = 0;
+	while (1)
+	{
+		DBGDSCR dscr;
+		errno_t ret = ap.read(REG_DBGDSCR, &dscr.raw);
+		if (ret != OK)
+			return ret;
+
+		if (dscr.InstrCompl_l)
+			break;
+
+		counter++;
+		if (counter >= 100)
+		{
+			_DBGPRT("InstrCompl_l is 0. (0x%08x)\n", dscr.raw);
+			return EFAULT;
+		}
+	}
+
+	errno_t ret = ap.write(REG_DBGITR, val);
+	if (ret != OK)
+		return ret;
 	return OK;
 }

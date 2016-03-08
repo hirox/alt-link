@@ -21,9 +21,56 @@ ADIv5TI::ADIv5TI(ADIv5 _adi) : adi(_adi)
 
 			dif->init(_dif->getPid().PART);
 
+			for (uint32_t i = 0; i < 20; i++)
+			{
+				uint32_t pc;
+				dif->getPCSR(&pc);
+				_DBGPRT("  PC(SR): 0x%08x\n", pc);
+			}
+			dif->printDSCR();
+		}
+
+		uint32_t ret;
+		uint32_t index = 0;
+		for (auto dif : v7dif)
+		{
+			_DBGPRT("  Halting CPU %d\n", index);
+			ret = dif->halt();
+			if (ret != OK)
+				_DBGPRT("    Failed! (0x%08x)\n", ret);
+			index++;
+		}
+
+		index = 0;
+		for (auto dif : v7dif)
+		{
+			_DBGPRT("  CPU %d\n", index);
+			for (uint32_t reg = 0; reg < 15; reg++)
+			{
+				uint32_t value;
+				ret = dif->readReg(reg, &value);
+				if (ret != OK)
+					_DBGPRT("    Failed to read register. (0x%08x)\n", ret);
+				_DBGPRT("    R%-2d: 0x%08x\n", reg, value);
+			}
+
 			uint32_t pc;
-			dif->getPC(&pc);
-			_DBGPRT("  PC: 0x%08x\n", pc);
+			ret = dif->getPC(&pc);
+			if (ret != OK)
+				_DBGPRT("    Failed to get PC. (0x%08x)\n", ret);
+			_DBGPRT("    PC : 0x%08x\n", pc);
+
+			index++;
+		}
+
+		index = 0;
+		for (auto dif : v7dif)
+		{
+			_DBGPRT("  Restarting CPU %d\n", index);
+			ret = dif->run();
+			if (ret != OK)
+				_DBGPRT("    Failed! (0x%08x)\n", ret);
+			index++;
 		}
 	}
 
@@ -393,6 +440,30 @@ errno_t ADIv5TI::readMemory(uint64_t addr, uint32_t len, std::vector<uint8_t>* a
 		if (len > 0) { array->push_back((data >> 8) & 0xFF); len--; }
 		if (len > 0) { array->push_back((data >> 16) & 0xFF); len--; }
 		ASSERT_RELEASE(len == 0);
+	}
+	return OK;
+}
+
+errno_t ADIv5TI::readMemory(uint64_t addr, uint32_t len, std::vector<uint32_t>* array)
+{
+	ASSERT_RELEASE(array != nullptr);
+
+	if (!mem)
+		return ENODEV;
+
+	if ((addr & 0x3) != 0 || (len % 4) != 0)
+		return EINVAL;
+
+	int32_t ret;
+	uint32_t i = 0;
+	for (; i < len / 4; i++)
+	{
+		uint32_t data;
+		ret = mem->read((uint32_t)addr, &data);
+		if (ret != OK)
+			return ret;
+		array->push_back(data);
+		addr += 4;
 	}
 	return OK;
 }

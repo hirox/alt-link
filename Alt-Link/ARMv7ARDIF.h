@@ -7,6 +7,7 @@
 union DBGDIDR;
 union DBGDEVID;
 union DBGDEVID1;
+union DBGDSCR;
 
 class ARMv7ARDIF : public ADIv5::Memory
 {
@@ -14,7 +15,18 @@ public:
 	ARMv7ARDIF(const Memory& memory) : Memory(memory) {}
 
 	errno_t init(uint32_t _PART);
+
+	errno_t readReg(uint32_t reg, uint32_t* data);	// reg: 0-14
+	errno_t writeReg(uint32_t reg, uint32_t data);	// reg: 0-14
+
 	errno_t getPC(uint32_t* pc);
+	errno_t getPCSR(uint32_t* pc);
+	errno_t halt();
+	errno_t run();
+	errno_t writeITR(uint32_t val);
+	errno_t readDCC(uint32_t* val);
+	errno_t writeDCC(uint32_t val);
+	void printDSCR();
 
 private:
 	union MPIDR
@@ -114,4 +126,6 @@ private:
 	DBGDIDR didr;
 	DBGDEVID devid;
 	DBGDEVID1 devid1;
+
+	errno_t readDSCR(DBGDSCR* dscr);
 };
