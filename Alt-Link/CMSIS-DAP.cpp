@@ -307,6 +307,30 @@ int32_t CMSISDAP::cmdDisconnect(void)
 	return ret;
 }
 
+int32_t CMSISDAP::cmdWriteAbort(uint32_t abort)
+{
+	TxPacket tx;
+	tx.write(_USB_HID_REPORT_NUM);
+	tx.write(CMD_WRITE_ABORT);
+	tx.write32(abort);
+
+	RxPacket rx;
+	int ret = usbTxRx(tx, &rx);
+	if (ret != OK)
+	{
+		_DBGPRT("err ret=%08x %s %s %d\n", ret, __FUNCTION__, __FILE__, __LINE__);
+		return ret;
+	}
+	uint8_t* data = rx.data();
+	if (data[1] != _DAP_RES_OK)
+	{
+		ret = CMSISDAP_ERR_DAP_RES;
+		_DBGPRT("err ret=%08x %s %s %d\n", ret, __FUNCTION__, __FILE__, __LINE__);
+	}
+
+	return ret;
+}
+
 int32_t CMSISDAP::cmdTxConf(uint8_t idle, uint16_t delay, uint16_t retry)
 {
 	TxPacket tx;
@@ -947,6 +971,13 @@ int32_t CMSISDAP::scanJtagDevices()
 	ret = resetJtagTap();
 	if (ret != OK)
 		return ret;
+
+	// special
+#if 1
+	ret = cmdWriteAbort(1);
+	if (ret != OK)
+		return ret;
+#endif
 
 	return OK;
 }

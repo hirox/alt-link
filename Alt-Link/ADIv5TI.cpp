@@ -2,6 +2,8 @@
 #include "stdafx.h"
 #include "ADIv5TI.h"
 
+#include <array>
+
 enum Signal
 {
 	SIGINT		= 2,
@@ -13,6 +15,8 @@ ADIv5TI::ADIv5TI(ADIv5 _adi) : adi(_adi)
 	auto _v7dif = adi.findARMv7ARDIF();
 	if (_v7dif.size() > 0)
 	{
+		errno_t ret;
+
 		_DBGPRT("ARMv7-A/R Debug Interface\n");
 		for (auto _dif : _v7dif)
 		{
@@ -24,41 +28,68 @@ ADIv5TI::ADIv5TI(ADIv5 _adi) : adi(_adi)
 			for (uint32_t i = 0; i < 20; i++)
 			{
 				uint32_t pc;
-				dif->getPCSR(&pc);
-				_DBGPRT("  PC(SR): 0x%08x\n", pc);
+				ret = dif->getPCSR(&pc);
+				if (ret != OK)
+				{
+					_DBGPRT("  Failed to get PC(SR).\n");
+				}
+				else
+				{
+					uint32_t cid;
+					ret = dif->getCIDSR(&cid);
+					if (ret != OK)
+						_DBGPRT("  PC(SR): 0x%08x, CID(SR): failed(0x%08x)\n", pc, ret);
+					else
+						_DBGPRT("  PC(SR): 0x%08x, CID(SR): 0x%08x\n", pc, cid);
+				}
 			}
 			dif->printDSCR();
+			dif->printPRSR();
 		}
 
-		uint32_t ret;
+#if 1
 		uint32_t index = 0;
+		std::vector<bool> halted;
 		for (auto dif : v7dif)
 		{
 			_DBGPRT("  Halting CPU %d\n", index);
 			ret = dif->halt();
 			if (ret != OK)
+			{
 				_DBGPRT("    Failed! (0x%08x)\n", ret);
+				halted[index] = false;
+			}
+			else
+			{
+				halted[index] = true;
+			}
 			index++;
 		}
 
 		index = 0;
 		for (auto dif : v7dif)
 		{
+			if (halted[index] == false)
+				continue;
+
 			_DBGPRT("  CPU %d\n", index);
+			dif->printDSCR();
 			for (uint32_t reg = 0; reg < 15; reg++)
 			{
 				uint32_t value;
 				ret = dif->readReg(reg, &value);
 				if (ret != OK)
-					_DBGPRT("    Failed to read register. (0x%08x)\n", ret);
-				_DBGPRT("    R%-2d: 0x%08x\n", reg, value);
+					_DBGPRT("    Failed to read register. (REG: %x, ret: 0x%08x)\n", reg, ret);
+				else
+					_DBGPRT("    R%-2d: 0x%08x\n", reg, value);
 			}
 
 			uint32_t pc;
 			ret = dif->getPC(&pc);
 			if (ret != OK)
-				_DBGPRT("    Failed to get PC. (0x%08x)\n", ret);
-			_DBGPRT("    PC : 0x%08x\n", pc);
+				_DBGPRT("    Failed to get PC. (ret: 0x%08x)\n", ret);
+			else
+				_DBGPRT("    PC : 0x%08x\n", pc);
 
 			index++;
 		}
@@ -66,12 +97,16 @@ ADIv5TI::ADIv5TI(ADIv5 _adi) : adi(_adi)
 		index = 0;
 		for (auto dif : v7dif)
 		{
+			if (halted[index] == false)
+				continue;
+
 			_DBGPRT("  Restarting CPU %d\n", index);
 			ret = dif->run();
 			if (ret != OK)
 				_DBGPRT("    Failed! (0x%08x)\n", ret);
 			index++;
 		}
+#endif
 	}
 
 	auto _scs = adi.findARMv6MSCS();
@@ -89,7 +124,7 @@ ADIv5TI::ADIv5TI(ADIv5 _adi) : adi(_adi)
 			dfsr.print();
 		scs->printDHCSR();
 
-		// Debug state �łȂ��ƃ��W�X�^�l�͓ǂ߂Ȃ�
+		// Debug state でないとレジスタ値は読めない
 		scs->halt();
 		scs->printRegs();
 		scs->run();

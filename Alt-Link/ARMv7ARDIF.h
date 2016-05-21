@@ -21,12 +21,14 @@ public:
 
 	errno_t getPC(uint32_t* pc);
 	errno_t getPCSR(uint32_t* pc);
+	errno_t getCIDSR(uint32_t* cid);
 	errno_t halt();
 	errno_t run();
 	errno_t writeITR(uint32_t val);
 	errno_t readDCC(uint32_t* val);
 	errno_t writeDCC(uint32_t val);
 	void printDSCR();
+	void printPRSR();
 
 private:
 	union MPIDR

@@ -11,7 +11,9 @@
 #define REG_DBGITR		(base + 0x084)	/* 33 */
 #define REG_DBGPCSR_33	(base + 0x084)	/* 33 */
 #define REG_DBGDRCR		(base + 0x090)
-#define REG_DBGPCSR_40	(base + 0x0A0)
+#define REG_DBGPCSR_40	(base + 0x0A0)	/* 40 */
+#define REG_DBGCIDSR	(base + 0x0A4)	/* 41 */
+#define REG_DBGPRSR		(base + 0x314)
 #define REG_MIDR		(base + 0xD00)
 #define REG_MPIDR		(base + 0xD14)
 #define REG_DBGDEVID1	(base + 0xFC4)
@@ -23,10 +25,10 @@ union DBGDSCR
 	{
 		uint32_t HALTED			: 1;
 		uint32_t RESTARTED		: 1;
-		uint32_t MODE			: 4;
-		uint32_t SDABORT_1		: 1;
-		uint32_t ADABORT_1		: 1;
-		uint32_t UND_1			: 1;
+		uint32_t MOE			: 4;
+		uint32_t SDABORT_l		: 1;
+		uint32_t ADABORT_l		: 1;
+		uint32_t UND_l			: 1;
 		uint32_t RESERVED		: 1;
 		uint32_t DBGack			: 1;
 		uint32_t INTdis			: 1;
@@ -51,6 +53,7 @@ union DBGDSCR
 	};
 	uint32_t raw;
 	void print();
+	void printIfNotSame();
 };
 static_assert(CONFIRM_UINT32(DBGDSCR));
 
@@ -82,7 +85,39 @@ static_assert(CONFIRM_UINT32(DBGPCSR));
 
 void DBGDSCR::print()
 {
-	_DBGPRT("  DSCR: 0x%08x\n", raw);
+	_DBGPRT("  DSCR           : 0x%08x\n", raw);
+	_DBGPRT("    HALTED       : 0x%08x %s\n", HALTED,
+		HALTED == 0 ? "" :
+		MOE == 0 ? "(Halt request debug event)" :
+		MOE == 1 ? "(Breakpoint debug event)" :
+		MOE == 2 ? "(Asynchronous watchpoint debug event)" :
+		MOE == 3 ? "(BKPT instruction debug event)" :
+		MOE == 4 ? "(External debug request debug event)" :
+		MOE == 5 ? "(Vector catch debug event)" :
+		MOE == 8 ? "(OS Unlock catch debug event)" :
+		MOE == 10 ? "(Synchronous watchpoint debug event)" :
+		"(Reserved)");
+	_DBGPRT("    RESTARTED    : 0x%08x\n", RESTARTED);
+	_DBGPRT("    SDABORT_l(%x) ADABORT_l(%x) UND_l(%x) DBGack(%x) INTdis(%x)\n", SDABORT_l, ADABORT_l, UND_l, DBGack, INTdis);
+	_DBGPRT("    UDCCdis(%x) ITRen(%x) HDBGen(%x) MDBGen(%x)\n", UDCCdis, ITRen, HDBGen, MDBGen);
+	_DBGPRT("    SPIDdis(%x) SPNIDdis(%x) NS(%x) ADAdiscard(%x)\n", SPIDdis, SPNIDdis, NS, ADAdiscard);
+	_DBGPRT("    InstrCompl_l(%x) PipeAdv(%x) TXfull_l(%x) RXfull_l(%x)\n", InstrCompl_l, PipeAdv, TXfull_l, RXfull_l);
+	_DBGPRT("    TXfull(%x) RXfull(%x)\n", TXfull, RXfull);
+	_DBGPRT("    ExtDCCmode   : %s\n",
+		ExtDCCmode == 0 ? "Non-blocking mode" :
+		ExtDCCmode == 1 ? "Stall mode" :
+		ExtDCCmode == 2 ? "Fast mode" :
+		"Reserved");
+}
+
+void DBGDSCR::printIfNotSame()
+{
+	static DBGDSCR lastDscr = { 0 };
+	if (lastDscr.raw != raw)
+	{
+		print();
+		lastDscr.raw = raw;
+	}
 }
 
 void ARMv7ARDIF::MPIDR::print()
@@ -253,7 +288,7 @@ errno_t ARMv7ARDIF::getPCSR(uint32_t *pc)
 		}
 	}
 
-	// try to read from reg44
+	// try to read from reg40
 	if (didr.DEVID_Exists())
 	{
 		if (devid.PCSR_Exists())
@@ -265,7 +300,7 @@ errno_t ARMv7ARDIF::getPCSR(uint32_t *pc)
 		}
 	}
 
-	// try to read from reg33 if reg44 is not found
+	// try to read from reg33 if reg40 is not found
 	if (found == false)
 	{
 		if (didr.PCSR_imp)
@@ -314,6 +349,18 @@ errno_t ARMv7ARDIF::getPCSR(uint32_t *pc)
 	return OK;
 }
 
+errno_t ARMv7ARDIF::getCIDSR(uint32_t* cid)
+{
+	if (cid == nullptr)
+		return EINVAL;
+
+	errno_t ret = ap.read(REG_DBGCIDSR, cid);
+	if (ret != OK)
+		return ret;
+
+	return OK;
+}
+
 void ARMv7ARDIF::printDSCR()
 {
 	DBGDSCR dscr;
@@ -326,6 +373,19 @@ void ARMv7ARDIF::printDSCR()
 	dscr.print();
 }
 
+void ARMv7ARDIF::printPRSR()
+{
+	uint32_t prsr;
+	errno_t ret = ap.read(REG_DBGPRSR, &prsr);
+	if (ret != OK)
+	{
+		_DBGPRT("  Failed to get PRSR(0x%08x)\n", ret);
+		return;
+	}
+
+	_DBGPRT("  PRSR(powerdown and reset status): 0x%08x\n", prsr);
+}
+
 errno_t ARMv7ARDIF::readDSCR(DBGDSCR* dscr)
 {
 	if (dscr == nullptr)
@@ -334,6 +394,8 @@ errno_t ARMv7ARDIF::readDSCR(DBGDSCR* dscr)
 	errno_t ret = ap.read(REG_DBGDSCR, &dscr->raw);
 	if (ret != OK)
 		return ret;
+
+	return OK;
 }
 
 errno_t ARMv7ARDIF::halt()
@@ -366,7 +428,10 @@ errno_t ARMv7ARDIF::halt()
 				dscr.ITRen = 1;
 				ret = ap.write(REG_DBGDSCR, dscr.raw);
 				if (ret != OK)
+				{
+					_DBGPRT("Failed to set ITRen.\n");
 					return ret;
+				}
 			}
 			break;
 		}
@@ -374,7 +439,8 @@ errno_t ARMv7ARDIF::halt()
 		counter++;
 		if (counter >= 100)
 		{
-			_DBGPRT("Failed to halt. (0x%08x)\n", dscr.raw);
+			_DBGPRT("Failed to halt. (DSCR: 0x%08x)\n", dscr.raw);
+			dscr.printIfNotSame();
 			return EFAULT;
 		}
 	}
@@ -419,7 +485,8 @@ errno_t ARMv7ARDIF::run()
 		counter++;
 		if (counter >= 100)
 		{
-			_DBGPRT("Failed to restart. (0x%08x)\n", dscr.raw);
+			_DBGPRT("Failed to restart. (DSCR: 0x%08x)\n", dscr.raw);
+			dscr.printIfNotSame();
 			return EFAULT;
 		}
 	}
@@ -445,7 +512,8 @@ errno_t ARMv7ARDIF::readDCC(uint32_t* val)
 		counter++;
 		if (counter >= 100)
 		{
-			_DBGPRT("DTR TX is not full. (0x%08x)\n", dscr.raw);
+			_DBGPRT("DTR TX is not full. (DSCR: 0x%08x)\n", dscr.raw);
+			dscr.printIfNotSame();
 			return EFAULT;
 		}
 	}
@@ -473,7 +541,8 @@ errno_t ARMv7ARDIF::writeDCC(uint32_t val)
 		counter++;
 		if (counter >= 100)
 		{
-			_DBGPRT("DTR RX is full. (0x%08x)\n", dscr.raw);
+			_DBGPRT("DTR RX is full. (DSCR: 0x%08x)\n", dscr.raw);
+			dscr.printIfNotSame();
 			return EFAULT;
 		}
 	}
@@ -502,7 +571,8 @@ errno_t ARMv7ARDIF::writeITR(uint32_t val)
 		counter++;
 		if (counter >= 100)
 		{
-			_DBGPRT("InstrCompl_l is 0. (0x%08x)\n", dscr.raw);
+			_DBGPRT("InstrCompl_l is 0. (DSCR: 0x%08x)\n", dscr.raw);
+			dscr.printIfNotSame();
 			return EFAULT;
 		}
 	}

@@ -188,6 +188,7 @@ private:
 	int32_t cmdInfoCapabilities();
 	int32_t cmdConnect(uint8_t mode);
 	int32_t cmdDisconnect();
+	int32_t cmdWriteAbort(uint32_t abort);
 	int32_t cmdTxConf(uint8_t idle, uint16_t delay, uint16_t retry);
 	int32_t cmdInfoFwVer();
 	int32_t cmdInfoVendor();
