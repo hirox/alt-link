@@ -103,7 +103,7 @@ void dump(ADIv5TI& ti, uint64_t start, uint32_t len)
 	}
 	else
 	{
-		_ERRPRT("Failed to read memory. (0x%08x)\n", ret);
+		_ERRPRT("Failed to read memory. (zero size)\n");
 	}
 }
 

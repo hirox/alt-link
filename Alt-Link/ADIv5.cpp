@@ -260,7 +260,10 @@ int32_t ADIv5::powerupDebug()
 	DP_CTRL_STAT ctrlStat;
 	int32_t ret = getCtrlStat(&ctrlStat);
 	if (ret != OK)
+	{
+		_DBGPRT("Failed to get CTRL/STAT.");
 		return ret;
+	}
 
 	ctrlStat.print();
 
@@ -271,14 +274,15 @@ int32_t ADIv5::powerupDebug()
 			return ret;
 	}
 
-	// CDBGPWRUPACK が立っていない場合は電源を入れる
-	if (!ctrlStat.CDBGPWRUPACK)
+	// CDBGPWRUPACK または CSYSPWRUPACK が立っていない場合は電源を入れる
+	if (!ctrlStat.CDBGPWRUPACK || !ctrlStat.CSYSPWRUPACK)
 	{
 		// JTAG-DP では W1C (Write a 1 clears to 0)
 		ctrlStat.STICKYCMP = 0;
 		ctrlStat.STICKYERR = 0;
 		ctrlStat.STICKYORUN = 0;
 
+		ctrlStat.CSYSPWRUPREQ = 1;
 		ctrlStat.CDBGPWRUPREQ = 1;
 		ret = setCtrlStat(ctrlStat);
 		if (ret != OK)
@@ -374,7 +378,7 @@ int32_t ADIv5::scanAPs()
 			idr.Type == 0x00 && idr.Class == AP_IDR::NoDefined ? "JTAG-AP" :
 			idr.isAHB() ? "MEM-AP AMBA AHB bus" :
 			idr.isAPB() ? "MEM-AP AMBA APB2 or APB3 bus" :
-			idr.isAXI() ? "MEM-AP AMBA AXI4 ot AXI4 bus" : "UNKNOWN");
+			idr.isAXI() ? "MEM-AP AMBA AXI4 or AXI4 bus" : "UNKNOWN");
 		_DBGPRT("      Variant    : %x\n", idr.Variant);
 		_DBGPRT("      Revision   : %x\n", idr.Revision);
 
