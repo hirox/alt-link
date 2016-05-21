@@ -86,16 +86,18 @@ static_assert(CONFIRM_SIZE(TransferRequest, uint32_t));
 #define WCR_TO_TRN(wcr) ((uint32_t)(1 + (3 & ((wcr)) >> 8))) /* 1..4 clocks */
 #define WCR_TO_PRESCALE(wcr) ((uint32_t)(7 & ((wcr))))       /* impl defined */
 
-int32_t CMSISDAP::usbOpen(void)
+int32_t CMSISDAP::enumerate(std::vector<DeviceInfo>* devices)
 {
+	if (devices == nullptr)
+		return CMSISDAP_ERR_INVALID_ARGUMENT;
+
+	devices->clear();
+
 	struct hid_device_info *info;
 	struct hid_device_info *infoCur;
-	uint16_t usbVID = 0;
-	uint16_t usbPID = 0;
 
-	packetMaxSize = _CMSISDAP_DEFAULT_PACKET_SIZE;
 	infoCur = info = hid_enumerate(0x0, 0x0);
-	while (NULL != infoCur) {
+	while (infoCur != nullptr) {
 #if 0
 		printf("type: %04hx %04hx\npath: %s\nserial_number: %ls\n", infoCur->vendor_id, infoCur->product_id, infoCur->path, infoCur->serial_number);
 		printf("Manu    : %ls\n", infoCur->manufacturer_string);
@@ -104,15 +106,15 @@ int32_t CMSISDAP::usbOpen(void)
 		if (infoCur->product_string != NULL &&
 			wcsstr(infoCur->product_string, L"CMSIS-DAP"))
 		{
-			break;
+			DeviceInfo deviceInfo;
+			deviceInfo.path = infoCur->path;
+			deviceInfo.productString = infoCur->product_string;
+			deviceInfo.serial = infoCur->serial_number;
+			deviceInfo.vid = infoCur->vendor_id;
+			deviceInfo.pid = infoCur->product_id;
+			devices->push_back(deviceInfo);
 		}
 		infoCur = infoCur->next;
-	}
-
-	if (infoCur != NULL)
-	{
-		usbVID = infoCur->vendor_id;
-		usbPID = infoCur->product_id;
 	}
 
 	if (info != NULL)
@@ -120,37 +122,53 @@ int32_t CMSISDAP::usbOpen(void)
 		hid_free_enumeration(info);
 	}
 
-	if (usbVID == 0 && usbPID == 0)
-	{
-		return CMSISDAP_ERR_USBHID_NOT_FOUND_DEVICE;
-	}
-
-	if (hid_init() != 0)
-	{
-		return CMSISDAP_ERR_USBHID_INIT;
-	}
-
-	hidHandle = hid_open(usbVID, usbPID, NULL);
-	if (hidHandle == NULL)
-	{
-		return CMSISDAP_ERR_USBHID_OPEN;
-	}
-
-	packetMaxSize = packetMaxSize;
-	vid = usbVID;
-	pid = usbPID;
-
-	return OK;
 }
 
-int32_t CMSISDAP::usbClose(void)
+std::shared_ptr<CMSISDAP> CMSISDAP::open(DeviceInfo& info)
 {
-	(void)hid_close(hidHandle);
+	if (hid_init() != 0)
+	{
+		return std::shared_ptr<CMSISDAP>();
+	}
+
+	hid_device* handle = hid_open(info.vid, info.pid, NULL);
+	if (handle == NULL)
+	{
+		_DBGPRT("hid_open failed.\n");
+		return std::shared_ptr<CMSISDAP>();
+	}
+
+	return std::shared_ptr<CMSISDAP>(new CMSISDAP(handle, info.vid, info.pid, _CMSISDAP_DEFAULT_PACKET_SIZE)); 
+}
+
+CMSISDAP::~CMSISDAP()
+{
+	int ret = cmdDisconnect();
+	if (ret != OK)
+	{
+		_ERRPRT("Failed to disconnect. (0x%08x)\n", ret);
+		return;
+	}
+
+	ret = cmdLed(RUNNING, 0);
+	if (ret != OK)
+	{
+		_ERRPRT("Failed to set LED. (0x%08x)\n", ret);
+		return;
+	}
+
+	ret = cmdLed(CONNECT, 0);
+	if (ret != OK)
+	{
+		_ERRPRT("Failed to set LED. (0x%08x)\n", ret);
+		return;
+	}
+
+	hid_close(hidHandle);
 	if (hid_exit() != 0)
 	{
-		return CMSISDAP_ERR_USBHID_EXIT;
+		return;
 	}
-	return OK;
 }
 
 int32_t CMSISDAP::usbTx(const TxPacket& packet)
@@ -1029,12 +1047,6 @@ int32_t CMSISDAP::cmdJtagSequence(SequenceInfo info, uint8_t* in, uint8_t* out)
 int32_t CMSISDAP::initialize(void)
 {
 	int32_t ret;
-	ret = usbOpen();
-	if (ret != OK)
-	{
-		return ret;
-	}
-
 	ret = cmdInfoCapabilities();
 	if (ret != OK)
 	{
@@ -1173,28 +1185,6 @@ int32_t CMSISDAP::setConnectionType(ConnectionType type)
 	}
 
 	return OK;
-}
-
-int32_t CMSISDAP::finalize(void)
-{
-	int ret;
-
-	ret = cmdDisconnect();
-	if (ret != OK)
-	{
-		return ret;
-	}
-
-	ret = cmdLed(RUNNING, 0);
-	if (ret != OK) {
-		return ret;
-	}
-
-	ret = cmdLed(CONNECT, 0);
-	if (ret != OK) {
-		return ret;
-	}
-	return ret;
 }
 
 int32_t CMSISDAP::setSpeed(uint32_t speed)

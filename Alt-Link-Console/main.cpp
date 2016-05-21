@@ -79,10 +79,58 @@ public:
 	TargetInterface& ti;
 };
 
+void dump(ADIv5TI& ti, uint64_t start, uint32_t len)
+{
+	std::vector<uint32_t> a;
+	int32_t ret = ti.readMemory(start, len, &a);
+	if (ret != OK)
+	{
+		_ERRPRT("Failed to read memory. (0x%08x)\n", ret);
+		return;
+	}
+	if (a.size() > 0)
+	{
+		uint32_t index = 0;
+		for (auto v : a)
+		{
+			if (index % 4 == 0)
+				_ERRPRT("0x%08x: ", start + index * 4);
+			_ERRPRT("0x%08x ", v);
+			if (index % 4 == 3)
+				_ERRPRT("\n");
+			index++;
+		}
+	}
+	else
+	{
+		_ERRPRT("Failed to read memory. (0x%08x)\n", ret);
+	}
+}
+
 int _tmain(int argc, _TCHAR* argv[])
 {
-	CMSISDAP dap;
-	int32_t ret = dap.initialize();
+	std::vector<CMSISDAP::DeviceInfo> devices;
+	int32_t ret = CMSISDAP::enumerate(&devices);
+	if (ret != OK)
+	{
+		_ERRPRT("Failed to enumerate device. (0x%08x)\n", ret);
+		return ret;
+	}
+
+	if (devices.size() == 0)
+	{
+		_ERRPRT("No CMSIS-DAP devices.\n");
+		return OK;
+	}
+
+	std::shared_ptr<CMSISDAP> dap = CMSISDAP::open(devices[0]);
+	if (dap == nullptr)
+	{
+		_ERRPRT("Failed to open CMSIS-DAP device.\n");
+		return OK;
+	}
+
+	ret = dap->initialize();
 	if (ret != OK)
 	{
 		_ERRPRT("Failed to initialize CMSIS-DAP device. (0x%08x)\n", ret);
@@ -97,21 +145,33 @@ int _tmain(int argc, _TCHAR* argv[])
 	CMSISDAP::ConnectionType type = CMSISDAP::SWJ_SWD;
 #endif
 
-	ret = dap.setConnectionType(type);
+	ret = dap->setConnectionType(type);
 	if (ret != OK)
 	{
 		_ERRPRT("Failed to set connection type. (0x%08x)\n", ret);
 		return ret;
 	}
 
-	ADIv5 adi(dap);
+	ADIv5 adi(*dap);
 
 	if (type == CMSISDAP::JTAG || type == CMSISDAP::SWJ_JTAG)
 	{
-		ret = dap.scanJtagDevices();
+		ret = dap->scanJtagDevices();
 		if (ret != OK)
 			return ret;
-
+		
+#if 0
+		ADIv5::DP_IDCODE idcode;
+		ret = adi.getIDCODE(&idcode);
+		if (ret != OK)
+		{
+			_ERRPRT("Could not read DP_IDCODE. (0x%08x)\n", ret);
+			if (ret == CMSISDAP_ERR_NO_ACK)
+				_ERRPRT("Target did not respond. Please check the electrical connection.\n");
+			return ret;
+		}
+		idcode.print();
+#endif
 	}
 	else if (type == CMSISDAP::SWJ_SWD)
 	{
@@ -144,11 +204,16 @@ int _tmain(int argc, _TCHAR* argv[])
 	if (ret != OK)
 		return ret;
 
-	ret = dap.cmdLed(CMSISDAP::RUNNING, false);
+	ret = dap->cmdLed(CMSISDAP::RUNNING, false);
 	if (ret != OK)
 		return ret;
 
 	ADIv5TI ti(adi);
+
+	//dump(ti, 0xFFFF0000, 0x80);
+	//dump(ti, 0xFFFF0000, 0x80);
+	//dump(ti, 0x1fefe000, 0x100);
+	//dump(ti, 0x3fefe000, 0x100);
 
 	static const uint16_t PORT = 1234;
 	Poco::Net::ServerSocket socket(PORT);

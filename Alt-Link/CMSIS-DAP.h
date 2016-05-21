@@ -14,14 +14,26 @@
 #include <hidapi.h>
 #include <string>
 #include <vector>
+#include <memory>
 
 #include "DAP.h"
 
 class CMSISDAP : public DAP
 {
 public:
+	struct DeviceInfo
+	{
+		std::string path;
+		std::wstring productString;
+		std::wstring serial;
+		uint16_t vid;
+		uint16_t pid;
+	};
+	static int32_t enumerate(std::vector<DeviceInfo>* devices);
+	static std::shared_ptr<CMSISDAP> open(DeviceInfo& info);
+	virtual ~CMSISDAP();
+
 	int32_t initialize(void);
-	int32_t finalize(void);
 	int32_t setSpeed(uint32_t speed);
 	int32_t scanJtagDevices();
 	void setDapIndex(uint8_t index) { dapIndex = index; }
@@ -45,6 +57,10 @@ public:
 	int32_t resetLink(void);
 
 private:
+	CMSISDAP();
+	CMSISDAP(hid_device* handle, uint16_t _vid, uint16_t _pid, uint32_t _packetMaxSize)
+		: hidHandle(handle), vid(_vid), pid(_pid), packetMaxSize(_packetMaxSize) {}
+
 	enum CMD {
 		CMD_INFO = 0x00,
 		CMD_LED = 0x01,
@@ -166,8 +182,6 @@ private:
 		void length(uint32_t len) { _length = len; }
 	};
 
-	int32_t usbOpen();
-	int32_t usbClose();
 	int32_t usbTx(const TxPacket& packet);
 	int32_t usbRx(RxPacket* rx);
 	int32_t usbTxRx(const TxPacket& tx, RxPacket* rx);
