@@ -38,6 +38,22 @@ public:
 	};
 	static_assert(CONFIRM_UINT32(DFSR));
 
+	union DEMCR
+	{
+		struct
+		{
+			uint32_t VC_CORERESET	: 1;
+			uint32_t Reserved0		: 9;
+			uint32_t VC_HARDERR		: 1;
+			uint32_t Reserved1		: 13;
+			uint32_t DWTENA			: 1;
+			uint32_t Reserved2		: 7;
+		};
+		uint32_t raw;
+		void print();
+	};
+	static_assert(CONFIRM_UINT32(DEMCR));
+
 	enum REGSEL : uint32_t
 	{
 		R0		= 0,
@@ -98,13 +114,14 @@ public:
 public:
 	ARMv6MSCS(const Memory& memory) : Memory(memory) {}
 
-	int32_t readCPUID(CPUID* cpuid);
-	int32_t readDFSR(DFSR* dfsr);
-	int32_t readReg(REGSEL reg, uint32_t* data);
-	int32_t writeReg(REGSEL reg, uint32_t data);
+	errno_t readCPUID(CPUID* cpuid);
+	errno_t readDFSR(DFSR* dfsr);
+	errno_t readDEMCR(DEMCR* demcr);
+	errno_t writeDEMCR(DEMCR& demcr);
+	errno_t readReg(REGSEL reg, uint32_t* data);
+	errno_t writeReg(REGSEL reg, uint32_t data);
 	void printRegs();
 	void printDHCSR();
-	void printDEMCR();
 
 	errno_t isHalt(bool* halt);
 

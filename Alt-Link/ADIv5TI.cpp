@@ -10,9 +10,9 @@ enum Signal
 	SIGTRAP		= 5
 };
 
-ADIv5TI::ADIv5TI(ADIv5 _adi) : adi(_adi)
+ADIv5TI::ADIv5TI(std::shared_ptr<ADIv5> _adi) : adi(_adi)
 {
-	auto _v7dif = adi.findARMv7ARDIF();
+	auto _v7dif = adi->findARMv7ARDIF();
 	if (_v7dif.size() > 0)
 	{
 		errno_t ret;
@@ -46,8 +46,76 @@ ADIv5TI::ADIv5TI(ADIv5 _adi) : adi(_adi)
 			dif->printDSCR();
 			dif->printPRSR();
 		}
+	}
 
-#if 1
+	auto _scs = adi->findARMv6MSCS();
+	if (_scs.size() > 0)
+	{
+		scs = std::make_shared<ARMv6MSCS>(*_scs[0]);
+
+		_DBGPRT("ARMv6-M/v7-M SCS\n");
+		ARMv6MSCS::CPUID cpuid;
+		if (scs->readCPUID(&cpuid) == OK)
+			cpuid.print();
+		ARMv6MSCS::DEMCR demcr;
+		if (scs->readDEMCR(&demcr) == OK)
+			demcr.print();
+		ARMv6MSCS::DFSR dfsr;
+		if (scs->readDFSR(&dfsr) == OK)
+			dfsr.print();
+		scs->printDHCSR();
+	}
+
+	auto _dwt = adi->findARMv6MDWT();
+	if (_dwt.size() > 0)
+	{
+		dwt = std::make_shared<ARMv6MDWT>(*_dwt[0]);
+		_DBGPRT("ARMv6-M DWT\n");
+		dwt->printPC();
+		dwt->printCtrl();
+	}
+
+	auto _v7dwt = adi->findARMv7MDWT();
+	if (_v7dwt.size() > 0)
+	{
+		dwt = std::make_shared<ARMv7MDWT>(*_v7dwt[0]);
+		_DBGPRT("ARMv7-M DWT\n");
+		dwt->printPC();
+		dwt->printCtrl();
+	}
+
+	auto _bpu = adi->findARMv6MBPU();
+	if (_bpu.size() > 0)
+	{
+		bpu = std::make_shared<ARMv6MBPU>(*_bpu[0]);
+		_DBGPRT("ARMv6-M BPU\n");
+		bpu->init();
+		bpu->printCtrl();
+	}
+
+	auto _fpb = adi->findARMv7MFPB();
+	if (_fpb.size() > 0)
+	{
+		fpb = std::make_shared<ARMv7MFPB>(*_fpb[0]);
+		_DBGPRT("ARMv7-M FPB\n");
+		fpb->init();
+		fpb->printCtrl();
+		fpb->printRemap();
+	}
+
+	auto _mem = adi->findSysmem();
+	if (_mem.size() > 0)
+	{
+		mem = _mem[0];
+	}
+}
+
+errno_t ADIv5TI::testHaltAndRun()
+{
+	errno_t ret = OK;
+
+	if (v7dif.size() > 0)
+	{
 		uint32_t index = 0;
 		std::vector<bool> halted;
 		for (auto dif : v7dif)
@@ -106,72 +174,18 @@ ADIv5TI::ADIv5TI(ADIv5 _adi) : adi(_adi)
 				_DBGPRT("    Failed! (0x%08x)\n", ret);
 			index++;
 		}
-#endif
 	}
 
-	auto _scs = adi.findARMv6MSCS();
-	if (_scs.size() > 0)
+	if (scs != nullptr)
 	{
-		scs = std::make_shared<ARMv6MSCS>(*_scs[0]);
-
-		_DBGPRT("ARMv6-M/v7-M SCS\n");
-		ARMv6MSCS::CPUID cpuid;
-		if (scs->readCPUID(&cpuid) == OK)
-			cpuid.print();
-		scs->printDEMCR();
-		ARMv6MSCS::DFSR dfsr;
-		if (scs->readDFSR(&dfsr) == OK)
-			dfsr.print();
-		scs->printDHCSR();
-
 		// Debug state でないとレジスタ値は読めない
-		scs->halt();
-		scs->printRegs();
-		scs->run();
+		ret = scs->halt();
+		if (ret == OK)
+			scs->printRegs();
+		ret = scs->run();
 	}
 
-	auto _dwt = adi.findARMv6MDWT();
-	if (_dwt.size() > 0)
-	{
-		dwt = std::make_shared<ARMv6MDWT>(*_dwt[0]);
-		_DBGPRT("ARMv6-M DWT\n");
-		dwt->printPC();
-		dwt->printCtrl();
-	}
-
-	auto _v7dwt = adi.findARMv7MDWT();
-	if (_v7dwt.size() > 0)
-	{
-		dwt = std::make_shared<ARMv7MDWT>(*_v7dwt[0]);
-		_DBGPRT("ARMv7-M DWT\n");
-		dwt->printPC();
-		dwt->printCtrl();
-	}
-
-	auto _bpu = adi.findARMv6MBPU();
-	if (_bpu.size() > 0)
-	{
-		bpu = std::make_shared<ARMv6MBPU>(*_bpu[0]);
-		_DBGPRT("ARMv6-M BPU\n");
-		bpu->init();
-		bpu->printCtrl();
-	}
-
-	auto _fpb = adi.findARMv7MFPB();
-	if (_fpb.size() > 0)
-	{
-		fpb = std::make_shared<ARMv7MFPB>(*_fpb[0]);
-		_DBGPRT("ARMv7-M FPB\n");
-		fpb->init();
-		fpb->printCtrl();
-		fpb->printRemap();
-	}
-
-	auto _mem = adi.findSysmem();
-	if (_mem.size() > 0)
-	{
-		mem = _mem[0];
-	}
+	return ret;
 }
 
 int32_t ADIv5TI::attach()

@@ -77,24 +77,9 @@ union DCRSR
 };
 static_assert(CONFIRM_UINT32(DCRSR));
 
-union DEMCR
+errno_t ARMv6MSCS::readCPUID(CPUID* cpuid)
 {
-	struct
-	{
-		uint32_t VC_CORERESET	: 1;
-		uint32_t Reserved0		: 9;
-		uint32_t VC_HARDERR		: 1;
-		uint32_t Reserved1		: 13;
-		uint32_t DWTENA			: 1;
-		uint32_t Reserved2		: 7;
-	};
-	uint32_t raw;
-};
-static_assert(CONFIRM_UINT32(DEMCR));
-
-int32_t ARMv6MSCS::readCPUID(CPUID* cpuid)
-{
-	int32_t ret;
+	errno_t ret;
 
 	if (cpuid == nullptr)
 		return CMSISDAP_ERR_INVALID_ARGUMENT;
@@ -146,9 +131,9 @@ void ARMv6MSCS::CPUID::print()
 	_DBGPRT("      Revision     : r%xp%x\n", Variant, Revision);
 }
 
-int32_t ARMv6MSCS::readDFSR(DFSR* dfsr)
+errno_t ARMv6MSCS::readDFSR(DFSR* dfsr)
 {
-	int32_t ret;
+	errno_t ret;
 
 	if (dfsr == nullptr)
 		return CMSISDAP_ERR_INVALID_ARGUMENT;
@@ -306,16 +291,31 @@ void ARMv6MSCS::printDHCSR()
 		, d.S_RETIRE_ST, d.S_RESET_ST);
 }
 
-void ARMv6MSCS::printDEMCR()
+errno_t ARMv6MSCS::readDEMCR(DEMCR* demcr)
 {
-	DEMCR d;
-	if (ap.read(REG_DEMCR, &d.raw) != OK)
-		return;
+	errno_t ret;
 
-	_DBGPRT("    DEMCR         : 0x%08x\n", d.raw);
-	_DBGPRT("      DWT         : %s\n", d.DWTENA ? "enabled" : "disabled");
-	_DBGPRT("      HardFault   : %s\n", d.VC_HARDERR ? "tarp" : "don't trap");
-	_DBGPRT("      ResetVector : %s\n", d.VC_CORERESET ? "trap" : "don't trap");
+	if (demcr == nullptr)
+		return CMSISDAP_ERR_INVALID_ARGUMENT;
+
+	ret = ap.read(REG_DEMCR, &demcr->raw);
+	if (ret != OK)
+		return ret;
+
+	return OK;
+}
+
+errno_t ARMv6MSCS::writeDEMCR(DEMCR& demcr)
+{
+	return ap.write(REG_DEMCR, demcr.raw);
+}
+
+void ARMv6MSCS::DEMCR::print()
+{
+	_DBGPRT("    DEMCR         : 0x%08x\n", raw);
+	_DBGPRT("      DWT         : %s\n", DWTENA ? "enabled" : "disabled");
+	_DBGPRT("      HardFault   : %s\n", VC_HARDERR ? "tarp" : "don't trap");
+	_DBGPRT("      ResetVector : %s\n", VC_CORERESET ? "trap" : "don't trap");
 }
 
 errno_t ARMv6MSCS::isHalt(bool* halt)

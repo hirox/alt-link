@@ -15,7 +15,7 @@
 class ADIv5TI : public TargetInterface
 {
 private:
-	ADIv5& adi;
+	std::shared_ptr<ADIv5> adi;
 	std::vector<std::shared_ptr<ARMv7ARDIF>> v7dif;
 	std::shared_ptr<ARMv6MSCS> scs;
 	std::shared_ptr<ARMv6MDWT> dwt;
@@ -24,7 +24,7 @@ private:
 	std::shared_ptr<ADIv5::MEM_AP> mem;
 
 public:
-	ADIv5TI(ADIv5 _adi);
+	ADIv5TI(std::shared_ptr<ADIv5> _adi);
 
 	virtual int32_t attach();
 	virtual void detach();
@@ -59,6 +59,12 @@ public:
 	virtual errno_t monitor(const std::string command, std::string* output);
 
 	virtual std::string targetXml(uint32_t offset, uint32_t length);
+
+public:
+	errno_t testHaltAndRun();
+
+	std::shared_ptr<ARMv6MSCS> getARMv6MSCS() { return scs; }
+	std::vector<std::shared_ptr<ARMv7ARDIF>> getARMv7ARDIF() { return v7dif; }
 
 private:
 	std::string createTargetXml();

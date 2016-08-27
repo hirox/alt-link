@@ -55,7 +55,7 @@ private:
 	static_assert(CONFIRM_UINT32(DP_CTRL_STAT));
 
 public:
-	ADIv5(DAP& _dap) : dap(_dap), ap(*this, _dap) {}
+	ADIv5(std::shared_ptr<DAP> _dap) : dap(_dap), ap(*this, *_dap) {}
 
 	int32_t getIDCODE(DP_IDCODE* idcode);
 	int32_t getCtrlStat(DP_CTRL_STAT* ctrlStat);
@@ -280,5 +280,5 @@ public:
 private:
 	std::vector<std::pair<std::shared_ptr<MEM_AP>, ROM_TABLE>> memAps;
 	std::vector<std::shared_ptr<MEM_AP>> ahbSysmemAps;
-	DAP& dap;
+	std::shared_ptr<DAP> dap;
 };

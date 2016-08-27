@@ -199,7 +199,7 @@ int32_t ADIv5::getIDCODE(DP_IDCODE* idcode)
 	if (idcode == nullptr)
 		return CMSISDAP_ERR_INVALID_ARGUMENT;
 
-	return dap.dpRead(DP_REG_IDCODE, &idcode->raw);
+	return dap->dpRead(DP_REG_IDCODE, &idcode->raw);
 }
 
 void ADIv5::DP_IDCODE::print()
@@ -235,12 +235,12 @@ int32_t ADIv5::getCtrlStat(DP_CTRL_STAT* ctrlStat)
 	if (ctrlStat == nullptr)
 		return CMSISDAP_ERR_INVALID_ARGUMENT;
 
-	return dap.dpRead(DP_REG_CTRL_STAT, &ctrlStat->raw);
+	return dap->dpRead(DP_REG_CTRL_STAT, &ctrlStat->raw);
 }
 
 int32_t ADIv5::setCtrlStat(DP_CTRL_STAT& ctrlStat)
 {
-	return dap.dpWrite(DP_REG_CTRL_STAT, ctrlStat.raw);
+	return dap->dpWrite(DP_REG_CTRL_STAT, ctrlStat.raw);
 }
 
 void ADIv5::DP_CTRL_STAT::print()
@@ -515,7 +515,7 @@ errno_t ADIv5::clearError()
 			_DBGPRT("Protocol Error is detected. ");
 		_DBGPRT("Trying to clear... ");
 
-		if (dap.getConnectionType() == DAP::JTAG)
+		if (dap->getConnectionType() == DAP::JTAG)
 		{
 			ret = setCtrlStat(ctrlStat);
 			if (ret != OK)
@@ -530,7 +530,7 @@ errno_t ADIv5::clearError()
 			abort.raw = 0;
 			abort.STKERRCLR = 1;
 			abort.WDERRCLR = 1;
-			ret = dap.dpWrite(DP_REG_ABORT, abort.raw);
+			ret = dap->dpWrite(DP_REG_ABORT, abort.raw);
 			if (ret != OK)
 			{
 				_DBGPRT("FAILED. (write)\n");

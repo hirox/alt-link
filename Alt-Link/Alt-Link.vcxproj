@@ -136,6 +136,7 @@
     <Text Include="ReadMe.txt" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Alt-Link.h" />
     <ClInclude Include="ARMv7ARDIF.h" />
     <ClInclude Include="ADIv5.h" />
     <ClInclude Include="ARMv6MBPU.h" />
