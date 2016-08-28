@@ -78,11 +78,13 @@ public:
 	std::shared_ptr<TargetInterface> ti;
 };
 
+std::shared_ptr<Poco::Net::TCPServer> server;
+
 void startRspServer(std::shared_ptr<TargetInterface> ti) {
 	static const uint16_t PORT = 1234;
 	Poco::Net::ServerSocket socket(PORT);
 	socket.listen();
 
-	Poco::Net::TCPServer server(new ConnectionFactory(ti), socket);
-	server.start();
+	server = std::make_shared<Poco::Net::TCPServer>(new ConnectionFactory(ti), socket);
+	server->start();
 }
