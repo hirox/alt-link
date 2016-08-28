@@ -1,6 +1,5 @@
 #pragma once
 
-#include "stdafx.h"
 #include "CMSIS-DAP.h"
 #include "ADIv5.h"
 #include "ADIv5TI.h"
@@ -130,8 +129,6 @@ public:
 			return ret;
 		}
 
-		std::shared_ptr<ADIv5> getADI() { return adi; }
-
 		errno_t isDataWatchpointAndTraceBlockEnabled(bool* enabled) {
 			errno_t ret;
 			if (ti == nullptr || enabled == nullptr)
@@ -195,6 +192,7 @@ public:
 					bool enabled;
 					if (isDataWatchpointAndTraceBlockEnabled(&enabled) == OK) {
 						if (!enabled) {
+							_DBGPRT("Enabling Data Watchpoint and Trace Block.\n");
 							if (enableDataWatchpointAndTraceBlock() == OK) {
 								ti = std::make_shared<ADIv5TI>(adi);
 							}
@@ -204,6 +202,10 @@ public:
 			}
 			return ti;
 		}
+
+		std::shared_ptr<CMSISDAP> getDAP() { return dap; }
+		std::shared_ptr<ADIv5> getADI() { return adi; }
+		CMSISDAP::DeviceInfo& getDeviceInfo() { return info; }
 	};
 
 private:

@@ -78,31 +78,6 @@ union DP_SELECT
 };
 static_assert(CONFIRM_UINT32(DP_SELECT));
 
-union AP_IDR
-{
-	enum ApClass : uint32_t
-	{
-		NoDefined			= 0x0,
-		MemoryAccessPort	= 0x8
-	};
-
-	struct
-	{
-		uint32_t Type		: 4;
-		uint32_t Variant	: 4;
-		uint32_t Reserved	: 5;
-		ApClass Class		: 4;
-		uint32_t IdentityCode		: 7;
-		uint32_t ContinuationCode	: 4;
-		uint32_t Revision	:4;
-	};
-	uint32_t raw;
-	bool isAHB() { return (Type == 0x01 && Class == MemoryAccessPort) ? true : false; }
-	bool isAPB() { return (Type == 0x02 && Class == MemoryAccessPort) ? true : false; }
-	bool isAXI() { return (Type == 0x04 && Class == MemoryAccessPort) ? true : false; }
-};
-static_assert(CONFIRM_UINT32(AP_IDR));
-
 union MEM_AP_CSW
 {
 	struct
@@ -374,13 +349,11 @@ int32_t ADIv5::scanAPs()
 		_DBGPRT("  AP-%d\n", i);
 		_DBGPRT("    IDR: 0x%08x\n", idr.raw);
 		_DBGPRT("      Designer   : %s\n", getJEP106DesignerName(idr.ContinuationCode, idr.IdentityCode));
-		_DBGPRT("      Class/Type : %s\n",
-			idr.Type == 0x00 && idr.Class == AP_IDR::NoDefined ? "JTAG-AP" :
-			idr.isAHB() ? "MEM-AP AMBA AHB bus" :
-			idr.isAPB() ? "MEM-AP AMBA APB2 or APB3 bus" :
-			idr.isAXI() ? "MEM-AP AMBA AXI4 or AXI4 bus" : "UNKNOWN");
+		_DBGPRT("      Class/Type : %s\n", idr.getClassType());
 		_DBGPRT("      Variant    : %x\n", idr.Variant);
 		_DBGPRT("      Revision   : %x\n", idr.Revision);
+
+		aps.push_back(std::make_pair(i, idr));
 
 		if (idr.Class == AP_IDR::MemoryAccessPort)
 		{

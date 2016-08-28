@@ -1,8 +1,6 @@
 
 #pragma once
 
-#include "stdafx.h"
-
 #if defined(_WIN32)
 #pragma comment(lib, "setupapi.lib")
 #if defined(_DEBUG)
@@ -24,10 +22,18 @@ public:
 	struct DeviceInfo
 	{
 		std::string path;
-		std::wstring productString;
-		std::wstring serial;
+		std::string productString;
+		std::string serial;
+		std::wstring wproductString;
+		std::wstring wserial;
 		uint16_t vid;
 		uint16_t pid;
+
+		template <class Archive>
+		void serialize(Archive & ar)
+		{
+			ar(CEREAL_NVP(path), CEREAL_NVP(productString), CEREAL_NVP(serial), CEREAL_NVP(vid), CEREAL_NVP(pid));
+		}
 	};
 	static int32_t enumerate(std::vector<DeviceInfo>* devices);
 	static std::shared_ptr<CMSISDAP> open(DeviceInfo& info);
@@ -51,15 +57,77 @@ public:
 		RUNNING = 1
 	};
 
-	int32_t cmdSwjPins(uint8_t value, uint8_t pin, uint32_t delay, uint8_t *input);
+	union PIN
+	{
+		struct
+		{
+			uint32_t SWCLK_TCK	: 1;
+			uint32_t SWDIO_TMS	: 1;
+			uint32_t TDI		: 1;
+			uint32_t TDO		: 1;
+			uint32_t Reserved0	: 1;
+			uint32_t nTRST		: 1;
+			uint32_t Reserved1	: 1;
+			uint32_t nRESET		: 1;
+			uint32_t Reserved2	: 24;
+		};
+		uint32_t raw;
+
+		template <class Archive>
+		void serialize(Archive & archive)
+		{
+			BF_ARCHIVE(SWCLK_TCK, SWDIO_TMS, TDI, TDO, nTRST, nRESET);
+		}
+		void print();
+	};
+	static_assert(CONFIRM_UINT32(PIN));
+
+	union Capabilities
+	{
+		struct
+		{
+			uint32_t SWD			: 1;
+			uint32_t JTAG			: 1;
+			uint32_t SWO_UART		: 1;
+			uint32_t SWO_Manchester	: 1;
+			uint32_t Reserved	: 28;
+		};
+		uint32_t raw;
+
+		template <class Archive>
+		void serialize(Archive & archive)
+		{
+			BF_ARCHIVE(SWD, JTAG, SWO_UART, SWO_Manchester);
+		}
+	};
+	static_assert(CONFIRM_UINT32(Capabilities));
+
+	struct DapInfo {
+		std::string firmwareVersion;
+		std::string name;
+		std::string vendor;
+		uint16_t packetMaxSize;
+		uint16_t packetMaxCount;
+		Capabilities capabilities;
+
+		template <class Archive>
+		void serialize(Archive & archive)
+		{
+			archive(CEREAL_NVP(firmwareVersion), CEREAL_NVP(name), CEREAL_NVP(vendor),
+				CEREAL_NVP(packetMaxSize), CEREAL_NVP(packetMaxCount), CEREAL_NVP(capabilities));
+		}
+		void print();
+	};
+
+	int32_t getPinStatus(PIN* pin);
 	int32_t cmdSwjClock(uint32_t clock);
 	int32_t cmdLed(LED led, bool on);
 	int32_t resetLink(void);
+	DapInfo& getDapInfo() { return dapInfo; }
 
 private:
 	CMSISDAP();
-	CMSISDAP(hid_device* handle, uint16_t _vid, uint16_t _pid, uint32_t _packetMaxSize)
-		: hidHandle(handle), vid(_vid), pid(_pid), packetMaxSize(_packetMaxSize) {}
+	CMSISDAP(hid_device* handle, uint16_t _vid, uint16_t _pid);
 
 	enum CMD {
 		CMD_INFO = 0x00,
@@ -94,18 +162,6 @@ private:
 		INFO_ID_PKT_SZ = 0xff,      /* short */
 	};
 
-	union Caps
-	{
-		struct
-		{
-			uint32_t SWD		: 1;
-			uint32_t JTAG		: 1;
-			uint32_t Reserved	: 30;
-		};
-		uint32_t raw;
-	};
-	static_assert(CONFIRM_UINT32(Caps));
-
 	union SequenceInfo
 	{
 		struct
@@ -129,21 +185,17 @@ private:
 			uint32_t VERSION	: 4;
 		};
 		uint32_t raw;
-		bool isARM() { return (RAO == 1 && DESIGNER == 0x23B) ? true : false; };
-		bool isOldARM() { return (RAO == 1 && DESIGNER == 0x787) ? true : false; };
+
+		bool isARM() { return (RAO == 1 && DESIGNER == 0x23B) ? true : false; }
+		bool isOldARM() { return (RAO == 1 && DESIGNER == 0x787) ? true : false; }
 	};
 	static_assert(CONFIRM_UINT32(JTAG_IDCODE));
 
 	hid_device *hidHandle;
-	std::string fwver;
-	std::string name;
-	std::string vendor;
+	DapInfo dapInfo;
 	uint32_t ap_bank_value;
-	uint16_t packetMaxSize;
-	uint16_t packetMaxCount;
 	uint16_t pid;
 	uint16_t vid;
-	Caps caps;
 
 	uint8_t dapIndex;
 
@@ -195,7 +247,7 @@ private:
 	int32_t cmdInfoName();
 	int32_t cmdInfoPacketSize();
 	int32_t cmdInfoPacketCount();
-	int32_t getPinStatus();
+	int32_t cmdSwjPins(uint8_t value, uint8_t pin, uint32_t delay, PIN* input);
 	int32_t dpapRead(bool dp, uint32_t reg, uint32_t *data);
 	int32_t dpapWrite(bool dp, uint32_t reg, uint32_t val);
 	int32_t getInfo(uint32_t type, RxPacket* rx);

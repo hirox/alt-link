@@ -12,11 +12,9 @@
 
 #include "error.h"
 #include "assert.h"
+#include "cereal.h"
 
 #define POCO_STATIC
-
-#define CONFIRM_SIZE(typeA, typeB) sizeof(typeA) == sizeof(typeB), "sizeof(" #typeA ") should be same as sizeof(" #typeB ")"
-#define CONFIRM_UINT32(type) CONFIRM_SIZE(type, uint32_t)
 
 #define _DBGPRT printf
 #define _ERRPRT printf

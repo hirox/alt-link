@@ -1,6 +1,9 @@
 
 #include "stdafx.h"
 
+#include <locale>
+#include <codecvt>
+
 #include "CMSIS-DAP.h"
 #include "ADIv5.h"
 #include "JEP106.h"
@@ -108,8 +111,12 @@ int32_t CMSISDAP::enumerate(std::vector<DeviceInfo>* devices)
 		{
 			DeviceInfo deviceInfo;
 			deviceInfo.path = infoCur->path;
-			deviceInfo.productString = infoCur->product_string;
-			deviceInfo.serial = infoCur->serial_number;
+			deviceInfo.wproductString = infoCur->product_string;
+			deviceInfo.productString =
+				std::wstring_convert<std::codecvt_utf8<wchar_t>, wchar_t>().to_bytes(deviceInfo.wproductString);
+			deviceInfo.wserial = infoCur->serial_number;
+			deviceInfo.serial =
+				std::wstring_convert<std::codecvt_utf8<wchar_t>, wchar_t>().to_bytes(deviceInfo.wserial);
 			deviceInfo.vid = infoCur->vendor_id;
 			deviceInfo.pid = infoCur->product_id;
 			devices->push_back(deviceInfo);
@@ -122,6 +129,7 @@ int32_t CMSISDAP::enumerate(std::vector<DeviceInfo>* devices)
 		hid_free_enumeration(info);
 	}
 
+	return OK;
 }
 
 std::shared_ptr<CMSISDAP> CMSISDAP::open(DeviceInfo& info)
@@ -138,7 +146,13 @@ std::shared_ptr<CMSISDAP> CMSISDAP::open(DeviceInfo& info)
 		return std::shared_ptr<CMSISDAP>();
 	}
 
-	return std::shared_ptr<CMSISDAP>(new CMSISDAP(handle, info.vid, info.pid, _CMSISDAP_DEFAULT_PACKET_SIZE)); 
+	return std::shared_ptr<CMSISDAP>(new CMSISDAP(handle, info.vid, info.pid)); 
+}
+
+CMSISDAP::CMSISDAP(hid_device* handle, uint16_t _vid, uint16_t _pid)
+	: hidHandle(handle), vid(_vid), pid(_pid)
+{
+	dapInfo.packetMaxSize = _CMSISDAP_DEFAULT_PACKET_SIZE;
 }
 
 CMSISDAP::~CMSISDAP()
@@ -389,7 +403,7 @@ int32_t CMSISDAP::cmdInfoCapabilities(void)
 	if (data[1] != 1)
 		return CMSISDAP_ERR_DAP_RES;
 
-	caps.raw = data[2];
+	dapInfo.capabilities.raw = data[2];
 	return OK;
 }
 
@@ -402,9 +416,9 @@ int32_t CMSISDAP::cmdInfoFwVer(void)
 
 	uint8_t* data = packet.data();
 	if (data[1] > 0)
-		fwver = std::string((const char *)&(data[2]));
+		dapInfo.firmwareVersion = std::string((const char *)&(data[2]));
 	else
-		fwver = "";
+		dapInfo.firmwareVersion = "";
 
 	return OK;
 }
@@ -418,9 +432,9 @@ int32_t CMSISDAP::cmdInfoVendor(void)
 
 	uint8_t* data = packet.data();
 	if (data[1] > 0)
-		vendor = std::string((const char *)&(data[2]));
+		dapInfo.vendor = std::string((const char *)&(data[2]));
 	else
-		vendor = "";
+		dapInfo.vendor = "";
 
 	return OK;
 }
@@ -434,9 +448,9 @@ int32_t CMSISDAP::cmdInfoName(void)
 
 	uint8_t* data = packet.data();
 	if (data[1] > 0)
-		name = std::string((const char *)&(data[2]));
+		dapInfo.name = std::string((const char *)&(data[2]));
 	else
-		name = "";
+		dapInfo.name = "";
 
 	return OK;
 }
@@ -457,8 +471,8 @@ int32_t CMSISDAP::cmdInfoPacketSize(void)
 	uint16_t size = data[2] + (data[3] << 8);
 
 	// [TODO] packetMaxSize に対応
-	if (packetMaxSize != size + 1)
-		packetMaxSize = size + 1;
+	if (dapInfo.packetMaxSize != size + 1)
+		dapInfo.packetMaxSize = size + 1;
 
 	return OK;
 }
@@ -477,26 +491,31 @@ int32_t CMSISDAP::cmdInfoPacketCount(void)
 		return ret;
 	}
 	// [TODO] packetMaxCount に対応
-	packetMaxCount = data[2];
+	dapInfo.packetMaxCount = data[2];
 	return OK;
 }
 
-int32_t CMSISDAP::getPinStatus(void)
+void CMSISDAP::PIN::print()
 {
-	int ret;
-	uint8_t d;
+	_DBGPRT("SWCLK/TCK:%d SWDIO/TMS:%d TDI:%d TDO:%d !TRST:%d !RESET:%d\n",
+		SWCLK_TCK ? 1 : 0,
+		SWDIO_TMS ? 1 : 0,
+		TDI ? 1 : 0,
+		TDO ? 1 : 0,
+		nTRST ? 1 : 0,
+		nRESET ? 1 : 0);
+}
 
-	ret = cmdSwjPins(0, 0, 0, &d);
+int32_t CMSISDAP::getPinStatus(PIN* pin)
+{
+	if (pin == nullptr)
+		return EINVAL;
+
+	errno_t ret = cmdSwjPins(0, 0, 0, pin);
 	if (ret != OK) {
 		_DBGPRT("err ret=%08x %s %s %d\n", ret, __FUNCTION__, __FILE__, __LINE__);
 		return ret;
 	}
-
-	_DBGPRT("SWCLK/TCK:%d SWDIO/TMS:%d TDI:%d TDO:%d !TRST:%d !RESET:%d\n",
-		(d & _PIN_SWCLK) ? 1 : 0, (d & _PIN_SWDIO) ? 1 : 0,
-		(d & _PIN_TDI) ? 1 : 0, (d & _PIN_TDO) ? 1 : 0,
-		(d & _PIN_nTRST) ? 1 : 0, (d & _PIN_nRESET) ? 1 : 0);
-
 	return OK;
 }
 
@@ -677,7 +696,7 @@ int32_t CMSISDAP::resetLink(void)
 	return ret;
 }
 
-int32_t CMSISDAP::cmdSwjPins(uint8_t value, uint8_t pin, uint32_t delay, uint8_t *input)
+int32_t CMSISDAP::cmdSwjPins(uint8_t value, uint8_t pin, uint32_t delay, PIN* input)
 {
 	TxPacket tx;
 	tx.write(_USB_HID_REPORT_NUM);
@@ -695,7 +714,7 @@ int32_t CMSISDAP::cmdSwjPins(uint8_t value, uint8_t pin, uint32_t delay, uint8_t
 	}
 	if (input != NULL)
 	{
-		*input = rx.data()[1];
+		input->raw = rx.data()[1];
 	}
 
 	return ret;
@@ -759,12 +778,12 @@ int32_t CMSISDAP::resetJtagTap()
 	if (ret != OK)
 		return ret;
 	
-	uint8_t value;
-	ret = cmdSwjPins(_PIN_nTRST, _PIN_nTRST, 0, &value);
+	PIN pin;
+	ret = cmdSwjPins(_PIN_nTRST, _PIN_nTRST, 0, &pin);
 	if (ret != OK)
 		return ret;
 
-	if ((value & _PIN_nTRST) == 0)
+	if (pin.nTRST == 0)
 	{
 		static bool isFirst = true;
 		if (isFirst)
@@ -1130,11 +1149,6 @@ int32_t CMSISDAP::initialize(void)
 		return ret;
 	}
 
-	ret = getPinStatus();
-	if (ret != OK) {
-		return ret;
-	}
-
 	ret = cmdSwjClock(1000 * 1000); /* 1000kHz */
 	if (ret != OK) {
 		return ret;
@@ -1151,19 +1165,24 @@ int32_t CMSISDAP::initialize(void)
 	}
 
 	_DBGPRT("Init OK.\n");
-	_DBGPRT("  F/W Version : %s\n", fwver == "" ? "none" : fwver.c_str());
-	_DBGPRT("  Packet Size : %u\n", packetMaxSize);
-	_DBGPRT("  Packet Cnt  : %u\n", packetMaxCount);
-	_DBGPRT("  Capabilities: %s (0x%08x)\n",
-		caps.SWD && caps.JTAG ? "JTAG/SWD" :
-		caps.JTAG ? "JTAG" :
-		caps.SWD ? "SWD" : "UNKNOWN", caps.raw);
-	_DBGPRT("  Vendor Name : %s\n", vendor == "" ? "none" : vendor.c_str());
-	_DBGPRT("  Name        : %s\n", name == "" ? "none" : name.c_str());
+	dapInfo.print();
 	_DBGPRT("  USB PID     : 0x%04x\n", pid);
 	_DBGPRT("  USB VID     : 0x%04x\n", vid);
 
 	return ret;
+}
+
+void CMSISDAP::DapInfo::print()
+{
+	_DBGPRT("  F/W Version : %s\n", firmwareVersion == "" ? "none" : firmwareVersion.c_str());
+	_DBGPRT("  Packet Size : %u\n", packetMaxSize);
+	_DBGPRT("  Packet Cnt  : %u\n", packetMaxCount);
+	_DBGPRT("  Capabilities: %s (0x%08x)\n",
+		capabilities.SWD && capabilities.JTAG ? "JTAG/SWD" :
+		capabilities.JTAG ? "JTAG" :
+		capabilities.SWD ? "SWD" : "UNKNOWN", capabilities.raw);
+	_DBGPRT("  Vendor Name : %s\n", vendor == "" ? "none" : vendor.c_str());
+	_DBGPRT("  Name        : %s\n", name == "" ? "none" : name.c_str());
 }
 
 int32_t CMSISDAP::setConnectionType(ConnectionType type)

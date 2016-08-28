@@ -52,8 +52,55 @@ int _tmain(int argc, _TCHAR* argv[])
 		return OK;
 	}
 
+#if 0
+	{
+		std::stringstream ss;
+		{
+			cereal::JSONOutputArchive archive(ss);
+			archive.makeArray();
+			for (auto item : altlink.getDevices()) {
+				archive(item->getDeviceInfo());
+			}
+		}
+		std::cout << ss.str() << std::endl;
+	}
+#endif
+
 	if (devices[0]->open() != OK)
 		return OK;
+
+#if 0
+	{
+		auto dap = devices[0]->getDAP();
+		CMSISDAP::PIN pin;
+		dap->getPinStatus(&pin);
+
+		std::stringstream ss;
+		{
+			cereal::JSONOutputArchive archive(ss);
+			archive(CEREAL_NVP(pin));
+		}
+		std::cout << ss.str() << std::endl;
+
+		{
+			cereal::JSONInputArchive iarchive(ss);
+			iarchive(CEREAL_NVP(pin));
+		}
+		pin.print();
+	}
+
+	{
+		auto dap = devices[0]->getDAP();
+		auto dapInfo = dap->getDapInfo();
+
+		std::stringstream ss;
+		{
+			cereal::JSONOutputArchive archive(ss);
+			archive(CEREAL_NVP(dapInfo));
+		}
+		std::cout << ss.str() << std::endl;
+	}
+#endif
 
 #if 0
 	CMSISDAP::ConnectionType type = CMSISDAP::JTAG;//CMSISDAP::SWJ_SWD;
@@ -70,6 +117,19 @@ int _tmain(int argc, _TCHAR* argv[])
 		return OK;
 
 	auto ti = devices[0]->getTI();
+
+#if 0
+	{
+		auto adi = devices[0]->getADI();;
+
+		std::stringstream ss;
+		{
+			cereal::JSONOutputArchive archive(ss);
+			adi->serializeApTable(archive);
+		}
+		std::cout << ss.str() << std::endl;
+	}
+#endif
 
 	ti->testHaltAndRun();
 

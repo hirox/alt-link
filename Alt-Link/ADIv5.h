@@ -6,6 +6,7 @@
 #include <memory>
 #include <functional>
 #include "DAP.h"
+#include "JEP106.h"
 
 class ADIv5
 {
@@ -101,6 +102,7 @@ public:
 		errno_t write(uint32_t addr, uint16_t val);
 		errno_t write(uint32_t addr, uint8_t val);
 		errno_t setAccessSize(AccessSize size);
+		uint32_t getIndex() const { return index; };
 
 	private:
 		AP& ap;
@@ -181,6 +183,14 @@ public:
 			};
 			uint32_t raw;
 			void print();
+			const char* getClassName() const;
+
+			template <class Archive>
+			void serialize(Archive & archive)
+			{
+				archive(CEREAL_NVP(raw));
+				BF_ARCHIVE(Preamble0, ComponentClass, Preamble1);
+			}
 		};
 		static_assert(CONFIRM_SIZE(CID, uint32_t));
 
@@ -204,7 +214,14 @@ public:
 			};
 			uint64_t raw;
 			void print();
-			bool isARM() { return JEP106CONTINUATION == 0x4 && JEP106ID == 0x3B ? true : false; }
+			bool isARM() const { return JEP106CONTINUATION == 0x4 && JEP106ID == 0x3B ? true : false; }
+
+			template <class Archive>
+			void serialize(Archive & archive)
+			{
+				archive(CEREAL_NVP(raw));
+				BF_ARCHIVE(PART, JEP106ID, JEDEC, REVISION, CMOD, REVAND, JEP106CONTINUATION, SIZE, RES0);
+			}
 		};
 		static_assert(CONFIRM_SIZE(PID, uint64_t));
 
@@ -222,6 +239,20 @@ public:
 		bool isARMv6MBPU();
 		bool isARMv7MFPB();
 
+		template <class Archive>
+		void save(Archive & archive) const
+		{
+			std::string name = getName();
+			std::string designer = getJEP106DesignerName(pid.JEP106CONTINUATION, pid.JEP106ID);
+			std::string className = cid.getClassName();
+			archive(::cereal::make_nvp("name", name));
+			archive(::cereal::make_nvp("designer", designer));
+			archive(CEREAL_NVP(base));
+			archive(::cereal::make_nvp("PID_RAW", pid));
+			archive(::cereal::make_nvp("CID", className));
+			archive(::cereal::make_nvp("CID_RAW", cid));
+		}
+
 	private:
 		CID cid;
 		PID pid;
@@ -229,7 +260,7 @@ public:
 	private:
 		int32_t readPid();
 		int32_t readCid();
-		const char* getName();
+		const char* getName() const;
 	};
 
 	class ROM_TABLE
@@ -257,8 +288,36 @@ public:
 			uint32_t raw;
 			uint32_t addr() { return raw & 0xFFFFF000; }
 			bool present() { return FORMAT && PRESENT && addr() != 0 ? true : false; }
+
+			template <class Archive>
+			void serialize(Archive & archive)
+			{
+				archive(CEREAL_NVP(raw));
+				BF_ARCHIVE(PRESENT, FORMAT, PWR_DOMAIN_ID_VAILD, RESERVED0, PWR_DOMAIN_ID, RESERVED1, ADDRESS_OFFSET);
+			}
 		};
 		static_assert(CONFIRM_SIZE(Entry, uint32_t));
+
+	public:
+		template <class Archive>
+		void save(Archive & archive) const
+		{
+			archive(::cereal::make_nvp("component", *component));
+			archive(CEREAL_NVP(sysmem));
+			archive(CEREAL_NVP(children));
+
+			archive.setNextName("entries");
+			archive.startNode();
+			archive.makeArray();
+			for (auto e : entries)
+			{
+				archive.startNode();
+				archive(::cereal::make_nvp("entry", e.first));
+				archive(::cereal::make_nvp("component", *e.second));
+				archive.finishNode();
+			}
+			archive.finishNode();
+		}
 
 	private:
 		std::shared_ptr<Component> component;
@@ -277,8 +336,78 @@ public:
 	std::vector<std::shared_ptr<Component>> findARMv7MFPB();
 	std::vector<std::shared_ptr<MEM_AP>> findSysmem();
 
+	template <class Archive>
+	void serializeApTable(Archive& archive);
+
 private:
+	union AP_IDR
+	{
+		enum ApClass : uint32_t
+		{
+			NoDefined			= 0x0,
+			MemoryAccessPort	= 0x8
+		};
+
+		struct
+		{
+			uint32_t Type		: 4;
+			uint32_t Variant	: 4;
+			uint32_t Reserved	: 5;
+			ApClass Class		: 4;
+			uint32_t IdentityCode		: 7;
+			uint32_t ContinuationCode	: 4;
+			uint32_t Revision	:4;
+		};
+		uint32_t raw;
+		bool isAHB() { return (Type == 0x01 && Class == MemoryAccessPort) ? true : false; }
+		bool isAPB() { return (Type == 0x02 && Class == MemoryAccessPort) ? true : false; }
+		bool isAXI() { return (Type == 0x04 && Class == MemoryAccessPort) ? true : false; }
+		const char* getClassType() {
+			return Type == 0x00 && Class == AP_IDR::NoDefined ? "JTAG-AP" :
+			isAHB() ? "MEM-AP AMBA AHB bus" :
+			isAPB() ? "MEM-AP AMBA APB2 or APB3 bus" :
+			isAXI() ? "MEM-AP AMBA AXI4 or AXI4 bus" : "UNKNOWN";
+		}
+
+		template <class Archive>
+		void serialize(Archive & archive)
+		{
+			archive(CEREAL_NVP(raw));
+			BF_ARCHIVE(Type, Variant, Reserved, Class, IdentityCode, ContinuationCode, Revision);
+		}
+	};
+	static_assert(CONFIRM_UINT32(AP_IDR));
+
 	std::vector<std::pair<std::shared_ptr<MEM_AP>, ROM_TABLE>> memAps;
 	std::vector<std::shared_ptr<MEM_AP>> ahbSysmemAps;
+	std::vector<std::pair<uint32_t, AP_IDR>> aps;
 	std::shared_ptr<DAP> dap;
 };
+
+template<class Archive>
+inline void ADIv5::serializeApTable(Archive & archive)
+{
+	archive.makeArray();
+	archive.startNode();
+	for (auto ap : aps) {
+		std::string classType = ap.second.getClassType();
+		std::string designer = getJEP106DesignerName(ap.second.ContinuationCode, ap.second.IdentityCode);
+		archive(::cereal::make_nvp("index", ap.first));
+		archive(::cereal::make_nvp("designer", designer));
+		archive(::cereal::make_nvp("classType", classType));
+		archive(::cereal::make_nvp("IDR_RAW", ap.second));
+
+		for (auto memAp : memAps) {
+			if (memAp.first->getIndex() == ap.first) {
+				archive(::cereal::make_nvp("romTable", memAp.second));
+			}
+		}
+
+		for (auto memAp : ahbSysmemAps) {
+			if (memAp->getIndex() == ap.first) {
+				archive(::cereal::make_nvp("ahbSysmem", true));
+			}
+		}
+	}
+	archive.finishNode();
+}

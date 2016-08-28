@@ -70,7 +70,7 @@ int32_t ADIv5::Component::readPid()
 	return OK;
 }
 
-const char* ADIv5::Component::getName()
+const char* ADIv5::Component::getName() const
 {
 	if (cid.ComponentClass == CID::ROM_TABLE)
 		return "ROM_TABLE";
@@ -255,17 +255,22 @@ void ADIv5::Component::PID::print()
 	_DBGPRT("      Size              : %dKB\n", 4 << SIZE);
 }
 
-void ADIv5::Component::CID::print()
+const char* ADIv5::Component::CID::getClassName() const
 {
-	_DBGPRT("    CID     : 0x%08x\n", raw);
-	_DBGPRT("      Class : %s\n",
+	return
 		ComponentClass == CID::GENERIC_VERIFICATION ? "Generic verification component" :
 		ComponentClass == CID::ROM_TABLE ? "ROM Table" :
 		ComponentClass == CID::DEBUG_COMPONENT ? "Debug component" :
 		ComponentClass == CID::PERIPHERAL_TEST_BLOCK ? "Peripheral Test Block" :
 		ComponentClass == CID::OPTIMO_DE ? "OptimoDE Data Engine SubSystem(DESS) component" :
 		ComponentClass == CID::GENERIC_IP ? "Generic IP component" :
-		ComponentClass == CID::PRIME_CELL ? "PrimeCell peripheral" : "UNKNOWN");
+		ComponentClass == CID::PRIME_CELL ? "PrimeCell peripheral" : "UNKNOWN";
+}
+
+void ADIv5::Component::CID::print()
+{
+	_DBGPRT("    CID     : 0x%08x\n", raw);
+	_DBGPRT("      Class : %s\n", getClassName());
 }
 
 void ADIv5::Component::printName()
