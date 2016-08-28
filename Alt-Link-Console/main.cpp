@@ -9,6 +9,7 @@
 #include "ADIv5.h"
 #include "ADIv5TI.h"
 #include "RspServer.h"
+#include "HttpServer.h"
 
 void dump(ADIv5TI& ti, uint64_t start, uint32_t len)
 {
@@ -38,9 +39,11 @@ void dump(ADIv5TI& ti, uint64_t start, uint32_t len)
 	}
 }
 
+AltLink altlink;
+
 int _tmain(int argc, _TCHAR* argv[])
 {
-	AltLink altlink;
+	startHttpServer();
 
 	if (altlink.enumerate() != OK)
 		return OK;
@@ -51,20 +54,6 @@ int _tmain(int argc, _TCHAR* argv[])
 		_ERRPRT("No CMSIS-DAP devices.\n");
 		return OK;
 	}
-
-#if 0
-	{
-		std::stringstream ss;
-		{
-			cereal::JSONOutputArchive archive(ss);
-			archive.makeArray();
-			for (auto item : altlink.getDevices()) {
-				archive(item->getDeviceInfo());
-			}
-		}
-		std::cout << ss.str() << std::endl;
-	}
-#endif
 
 	if (devices[0]->open() != OK)
 		return OK;
@@ -113,25 +102,10 @@ int _tmain(int argc, _TCHAR* argv[])
 	if (devices[0]->setConnectionType(type) != OK)
 		return OK;
 
-	if (devices[0]->scanAPs() != OK)
+	if (devices[0]->scan() != OK)
 		return OK;
 
 	auto ti = devices[0]->getTI();
-
-#if 0
-	{
-		auto adi = devices[0]->getADI();;
-
-		std::stringstream ss;
-		{
-			cereal::JSONOutputArchive archive(ss);
-			adi->serializeApTable(archive);
-		}
-		std::cout << ss.str() << std::endl;
-	}
-#endif
-
-	ti->testHaltAndRun();
 
 	//dump(ti, 0xFFFF0000, 0x80);
 	//dump(ti, 0xFFFF0000, 0x80);

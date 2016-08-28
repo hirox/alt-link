@@ -24,6 +24,73 @@ public:
 				autoPowerUpDebugBlock(true), autoEnableDataWatchpointAndTraceBlock(true) {}
 		} flags;
 
+	private:
+		errno_t scanAPs() {
+			errno_t ret;
+
+			if (opened == false)
+				return EFAULT;
+
+			ti = nullptr;
+			adi = std::make_shared<ADIv5>(dap);
+
+			if (connectionType == CMSISDAP::JTAG || connectionType == CMSISDAP::SWJ_JTAG)
+			{
+				ret = dap->scanJtagDevices();
+				if (ret != OK)
+					return ret;
+
+#if 0
+				ADIv5::DP_IDCODE idcode;
+				ret = adi.getIDCODE(&idcode);
+				if (ret != OK)
+				{
+					_ERRPRT("Could not read DP_IDCODE. (0x%08x)\n", ret);
+					if (ret == CMSISDAP_ERR_NO_ACK)
+						_ERRPRT("Target did not respond. Please check the electrical connection.\n");
+					return ret;
+		}
+				idcode.print();
+#endif
+			}
+			else if (connectionType == CMSISDAP::SWJ_SWD)
+			{
+				// SWD 移行直後は Reset State なので IDCODE を読んで解除する
+				ADIv5::DP_IDCODE idcode;
+				ret = adi->getIDCODE(&idcode);
+				if (ret != OK)
+				{
+					_ERRPRT("Could not read DP_IDCODE. (0x%08x)\n", ret);
+					if (ret == CMSISDAP_ERR_NO_ACK)
+						_ERRPRT("Target did not respond. Please check the electrical connection.\n");
+					return ret;
+				}
+				idcode.print();
+			}
+
+#if 0
+			ret = dap.resetLink();
+			if (ret != OK) {
+				(void)dap.cmdLed(CMSISDAP::RUNNING, false);
+				return ret;
+			}
+#endif
+
+			if (flags.autoPowerUpDebugBlock)
+			{
+				ret = adi->powerupDebug();
+				if (ret != OK)
+					return ret;
+			}
+
+			ret = adi->scanAPs();
+			if (ret != OK)
+				return ret;
+
+			scanned = true;
+			return ret;
+		}
+
 	public:
 		Device(CMSISDAP::DeviceInfo _info)
 			: info(_info), opened(false), scanned(false), adi(nullptr), dap(nullptr), ti(nullptr),
@@ -60,72 +127,8 @@ public:
 				_ERRPRT("Failed to set connection type. (0x%08x)\n", ret);
 				return ret;
 			}
-			return ret;
-		}
 
-		errno_t scanAPs() {
-			errno_t ret;
-
-			if (opened == false)
-				return EFAULT;
-
-			ti = nullptr;
-			adi = std::make_shared<ADIv5>(dap);
-
-			if (connectionType == CMSISDAP::JTAG || connectionType == CMSISDAP::SWJ_JTAG)
-			{
-				ret = dap->scanJtagDevices();
-				if (ret != OK)
-					return ret;
-
-#if 0
-				ADIv5::DP_IDCODE idcode;
-				ret = adi.getIDCODE(&idcode);
-				if (ret != OK)
-				{
-					_ERRPRT("Could not read DP_IDCODE. (0x%08x)\n", ret);
-					if (ret == CMSISDAP_ERR_NO_ACK)
-						_ERRPRT("Target did not respond. Please check the electrical connection.\n");
-					return ret;
-		}
-				idcode.print();
-#endif
-	}
-			else if (connectionType == CMSISDAP::SWJ_SWD)
-			{
-				// SWD 移行直後は Reset State なので IDCODE を読んで解除する
-				ADIv5::DP_IDCODE idcode;
-				ret = adi->getIDCODE(&idcode);
-				if (ret != OK)
-				{
-					_ERRPRT("Could not read DP_IDCODE. (0x%08x)\n", ret);
-					if (ret == CMSISDAP_ERR_NO_ACK)
-						_ERRPRT("Target did not respond. Please check the electrical connection.\n");
-					return ret;
-				}
-				idcode.print();
-			}
-
-#if 0
-			ret = dap.resetLink();
-			if (ret != OK) {
-				(void)dap.cmdLed(CMSISDAP::RUNNING, false);
-				return ret;
-			}
-#endif
-
-			if (flags.autoPowerUpDebugBlock)
-			{
-				ret = adi->powerupDebug();
-				if (ret != OK)
-					return ret;
-			}
-
-			ret = adi->scanAPs();
-			if (ret != OK)
-				return ret;
-
-			scanned = true;
+			scanned = false;
 			return ret;
 		}
 
@@ -165,7 +168,8 @@ public:
 			if (ret != OK)
 				return ret;
 
-			if (!demcr.DWTENA) {
+			if (!demcr.DWTENA)
+			{
 				demcr.DWTENA = 1;
 				ret = scs->writeDEMCR(demcr);
 				if (ret != OK)
@@ -179,27 +183,45 @@ public:
 			return OK;
 		}
 
-		std::shared_ptr<ADIv5TI> getTI() {
-			if (scanned == false) {
-				if (scanAPs() != OK)
-					return nullptr;
-			}
+		errno_t scan() {
+			if (scanned)
+				return OK;
 
-			if (ti == nullptr && adi != nullptr) {
+			auto ret = scanAPs();
+			if (ret != OK)
+				return ret;
+
+			if (adi == nullptr)
+				return EFAULT;
+
+			if (ti == nullptr)
 				ti = std::make_shared<ADIv5TI>(adi);
 
-				if (flags.autoEnableDataWatchpointAndTraceBlock) {
-					bool enabled;
-					if (isDataWatchpointAndTraceBlockEnabled(&enabled) == OK) {
-						if (!enabled) {
-							_DBGPRT("Enabling Data Watchpoint and Trace Block.\n");
-							if (enableDataWatchpointAndTraceBlock() == OK) {
-								ti = std::make_shared<ADIv5TI>(adi);
-							}
-						}
-					}
+			if (!flags.autoEnableDataWatchpointAndTraceBlock)
+				return OK;
+
+			bool enabled;
+			if (isDataWatchpointAndTraceBlockEnabled(&enabled) == OK)
+			{
+				if (!enabled)
+				{
+					_DBGPRT("Enabling Data Watchpoint and Trace Block.\n");
+					if (enableDataWatchpointAndTraceBlock() == OK)
+						ti = std::make_shared<ADIv5TI>(adi);
 				}
 			}
+
+			return OK;
+		}
+
+		std::shared_ptr<ADIv5TI> getTI() {
+			if (scanned == false)
+				return nullptr;
+
+
+			if (ti == nullptr && adi != nullptr)
+				ti = std::make_shared<ADIv5TI>(adi);
+
 			return ti;
 		}
 
@@ -224,9 +246,9 @@ public:
 			return ret;
 		}
 
-		for (auto i : info) {
+		for (auto i : info)
 			devices.push_back(std::make_shared<Device>(i));
-		}
+
 		return ret;
 	}
 

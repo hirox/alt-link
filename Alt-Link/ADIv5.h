@@ -385,7 +385,7 @@ private:
 };
 
 template<class Archive>
-inline void ADIv5::serializeApTable(Archive & archive)
+inline void ADIv5::serializeApTable(Archive& archive)
 {
 	archive.makeArray();
 	archive.startNode();
