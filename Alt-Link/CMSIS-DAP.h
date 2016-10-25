@@ -151,7 +151,7 @@ private:
 	};
 
 	enum INFO_ID {
-		INFO_ID_VID = 0x00,         /* string */
+		INFO_ID_VID = 0x01,         /* string */
 		INFO_ID_PID = 0x02,         /* string */
 		INFO_ID_SERNUM = 0x03,      /* string */
 		INFO_ID_FW_VER = 0x04,      /* string */

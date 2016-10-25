@@ -426,7 +426,7 @@ int32_t CMSISDAP::cmdInfoFwVer(void)
 int32_t CMSISDAP::cmdInfoVendor(void)
 {
 	RxPacket packet;
-	int ret = getInfo(INFO_ID_TD_VEND, &packet);
+	int ret = getInfo(INFO_ID_VID, &packet);
 	if (ret != OK)
 		return ret;
 
@@ -442,7 +442,7 @@ int32_t CMSISDAP::cmdInfoVendor(void)
 int32_t CMSISDAP::cmdInfoName(void)
 {
 	RxPacket packet;
-	int ret = getInfo(INFO_ID_TD_NAME, &packet);
+	int ret = getInfo(INFO_ID_PID, &packet);
 	if (ret != OK)
 		return ret;
 
@@ -1182,7 +1182,7 @@ void CMSISDAP::DapInfo::print()
 		capabilities.JTAG ? "JTAG" :
 		capabilities.SWD ? "SWD" : "UNKNOWN", capabilities.raw);
 	_DBGPRT("  Vendor Name : %s\n", vendor == "" ? "none" : vendor.c_str());
-	_DBGPRT("  Name        : %s\n", name == "" ? "none" : name.c_str());
+	_DBGPRT("  Product Name: %s\n", name == "" ? "none" : name.c_str());
 }
 
 int32_t CMSISDAP::setConnectionType(ConnectionType type)
