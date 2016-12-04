@@ -969,11 +969,34 @@ int32_t CMSISDAP::scanJtagDevices()
 			case 0x7B37:
 				_DBGPRT("    Device  : ARM ARM11 MPCore (REV.%d) (0x%08x)\n", idcode.VERSION, idcode.raw);
 				jtagIrLength.push_back(5);
+				break;
 			case 0x5966:
 				_DBGPRT("    Device  : ARM ARM966E-S (REV.%d) (0x%08x)\n", idcode.VERSION, idcode.raw);
 				jtagIrLength.push_back(4);
 				break;
 			}
+		}
+		else if (idcode.DESIGNER == 0x20)
+		{
+			switch (idcode.PARTNO)
+			{
+			case 0x6412:
+				_DBGPRT("    Device  : STM32 low-density device (PARTNO %x, VER.%d) (0x%08x)\n", idcode.PARTNO, idcode.VERSION, idcode.raw);
+				break;
+			case 0x6410:
+				_DBGPRT("    Device  : STM32 medium-density device (PARTNO %x, VER.%d) (0x%08x)\n", idcode.PARTNO, idcode.VERSION, idcode.raw);
+				break;
+			case 0x6414:
+				_DBGPRT("    Device  : STM32 high-density device (PARTNO %x, VER.%d) (0x%08x)\n", idcode.PARTNO, idcode.VERSION, idcode.raw);
+				break;
+			case 0x6430:
+				_DBGPRT("    Device  : STM32 XL-density device (PARTNO %x, VER.%d) (0x%08x)\n", idcode.PARTNO, idcode.VERSION, idcode.raw);
+				break;
+			case 0x6418:
+				_DBGPRT("    Device  : STM32 connectivity line device (PARTNO %x, VER.%d) (0x%08x)\n", idcode.PARTNO, idcode.VERSION, idcode.raw);
+				break;
+			}
+			jtagIrLength.push_back(5);
 		}
 		else
 		{
@@ -1149,7 +1172,7 @@ int32_t CMSISDAP::initialize(void)
 		return ret;
 	}
 
-	ret = cmdSwjClock(1000 * 1000); /* 1000kHz */
+	ret = cmdSwjClock(5000 * 1000); /* 5000kHz */
 	if (ret != OK) {
 		return ret;
 	}
