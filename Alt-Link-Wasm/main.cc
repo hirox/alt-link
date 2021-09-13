@@ -145,6 +145,85 @@ void dump(ADIv5TI& ti, uint64_t start, uint32_t len)
 }
 
 AltLink altlink;
+std::shared_ptr<AltLink::Device> current_device;
+std::shared_ptr<ADIv5TI> current_ti;
+
+class TargetBinding {
+public:
+	emscripten::val readMemory(uint32_t addr, uint32_t len) {
+		#if 0
+		auto ti = devices[0]->getTI();
+
+		//dump(ti, 0xFFFF0000, 0x80);
+		//dump(ti, 0xFFFF0000, 0x80);
+		//dump(ti, 0x1fefe000, 0x100);
+		//dump(ti, 0x3fefe000, 0x100);
+		#endif
+
+		std::vector<uint8_t> a;
+		int32_t ret = current_ti->readMemory(addr, len, &a);
+		if (ret != OK) {
+			return emscripten::val::undefined();
+		} else {
+			return emscripten::val::array(a);
+		}
+	}
+
+	emscripten::val isRunning() {
+		bool running;
+		uint8_t signal;
+		auto ret = current_ti->isRunning(&running, &signal);
+		if (ret != OK) {
+			return emscripten::val::undefined();
+		} else {
+			std::vector<uint8_t> a;
+			a.push_back(running);
+			a.push_back(signal);
+			return emscripten::val::array(a);
+		}
+	}
+
+	emscripten::val interrupt() {
+		uint8_t signal;
+		auto ret = current_ti->interrupt(&signal);
+		if (ret != OK) {
+			return emscripten::val::undefined();
+		} else {
+			std::vector<uint8_t> a;
+			a.push_back(signal);
+			return emscripten::val::array(a);
+		}
+	}
+
+	void resume() {
+		current_ti->resume();
+	}
+
+	emscripten::val readRegister(const uint32_t n) {
+		uint32_t value = 0;
+		auto ret = current_ti->readRegister(n, &value);
+		if (ret != OK) {
+			return emscripten::val::undefined();
+		} else {
+			std::vector<uint32_t> a;
+			a.push_back(value);
+			return emscripten::val::array(a);
+		}
+	}
+};
+
+EMSCRIPTEN_BINDINGS(target_binding_class) {
+  emscripten::class_<TargetBinding>("TargetBinding")
+	.constructor()
+    .function("readMemory", &TargetBinding::readMemory)
+    .function("isRunning", &TargetBinding::isRunning)
+    .function("interrupt", &TargetBinding::interrupt)
+    .function("resume", &TargetBinding::resume)
+    .function("readRegister", &TargetBinding::readRegister)
+    //.property("x", &MyClass::getX, &MyClass::setX)
+    //.class_function("getStringFromInstance", &MyClass::getStringFromInstance)
+    ;
+}
 
 int main(int argc, char* argv[])
 {
@@ -208,12 +287,9 @@ int main(int argc, char* argv[])
 	if (devices[0]->scan() != OK)
 		return OK;
 
-	auto ti = devices[0]->getTI();
 
-	//dump(ti, 0xFFFF0000, 0x80);
-	//dump(ti, 0xFFFF0000, 0x80);
-	//dump(ti, 0x1fefe000, 0x100);
-	//dump(ti, 0x3fefe000, 0x100);
+	current_device = devices[0];
+	current_ti = devices[0]->getTI();
 
 	return 0;
 }

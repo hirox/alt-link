@@ -7,7 +7,10 @@ cc_binary(
     deps = [
         "//Alt-Link:alt-link-lib"
     ],
-    linkopts = ["-s ASYNCIFY=1", "-s EXPORTED_RUNTIME_METHODS='[\"callMain\"]'"]
+    linkopts = [
+        "--bind",           # For EMSCRIPTEN_BINDINGS
+        "-s ASYNCIFY=1",    # For EM_ASYNC_JS
+        "-s EXPORTED_RUNTIME_METHODS='[\"callMain\"]'"]
 )
 
 wasm_cc_binary(
