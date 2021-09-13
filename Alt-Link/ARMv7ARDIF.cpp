@@ -1,4 +1,3 @@
-
 #include "stdafx.h"
 #include "ARMv7ARDIF.h"
 
@@ -112,7 +111,7 @@ void DBGDSCR::print()
 
 void DBGDSCR::printIfNotSame()
 {
-	static DBGDSCR lastDscr = { 0 };
+	static DBGDSCR lastDscr = { };
 	if (lastDscr.raw != raw)
 	{
 		print();
@@ -408,7 +407,7 @@ errno_t ARMv7ARDIF::halt()
 	if (dscr.HALTED)
 		return OK;
 
-	DBGDRCR drcr = { 0 };
+	DBGDRCR drcr = { };
 	drcr.HRQ = 1;
 	ret = ap.write(REG_DBGDRCR, drcr.raw);
 	if (ret != OK)
@@ -466,7 +465,7 @@ errno_t ARMv7ARDIF::run()
 			return ret;
 	}
 
-	DBGDRCR drcr = { 0 };
+	DBGDRCR drcr = { };
 	drcr.RRQ = 1;
 	ret = ap.write(REG_DBGDRCR, drcr.raw);
 	if (ret != OK)

@@ -92,7 +92,8 @@ void PacketTransfer::push(std::string& data)
 PacketTransfer::Packet PacketTransfer::makePacket(const std::string& payload)
 {
 	std::string escaped = escape(payload);
-	return Packet("$" + escaped + "#" + Converter::toHex(checkSum.get(escaped)));
+	std::string arg = "$" + escaped + "#" + Converter::toHex(checkSum.get(escaped));
+	return Packet(arg);
 }
 
 std::string PacketTransfer::escape(const std::string data)

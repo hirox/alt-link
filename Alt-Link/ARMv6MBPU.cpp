@@ -71,6 +71,7 @@ int32_t ARMv6MBPU::findEmpty()
 	uint32_t index = 0;
 	for (auto e : bpList)
 	{
+		(void) e;
 		if (!bpList[index].ENABLE)
 			return index;
 		index++;

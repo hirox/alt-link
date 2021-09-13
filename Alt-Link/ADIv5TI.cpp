@@ -417,7 +417,7 @@ errno_t ADIv5TI::writeRegister(const uint32_t n, const uint32_t data)
 errno_t ADIv5TI::writeRegister(const uint32_t n, const uint64_t data)
 {
 	// [TODO] support 64bit
-	return writeRegister(n, data);
+	return writeRegister(n, static_cast<uint32_t>(data));
 }
 
 errno_t ADIv5TI::writeRegister(const uint32_t n, const uint64_t data1, const uint64_t data2)

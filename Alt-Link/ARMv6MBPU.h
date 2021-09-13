@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <vector>
+#include <errno.h>
 #include "ADIv5.h"
 
 class ARMv6MBPU : public ADIv5::Memory

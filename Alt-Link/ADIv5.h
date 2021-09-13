@@ -5,6 +5,7 @@
 #include <vector>
 #include <memory>
 #include <functional>
+#include <errno.h>
 #include "DAP.h"
 #include "JEP106.h"
 
@@ -56,7 +57,7 @@ private:
 	static_assert(CONFIRM_UINT32(DP_CTRL_STAT));
 
 public:
-	ADIv5(std::shared_ptr<DAP> _dap) : dap(_dap), ap(*this, *_dap) {}
+	ADIv5(std::shared_ptr<DAP> _dap) : ap(*this, *_dap), dap(_dap) {}
 
 	int32_t getIDCODE(DP_IDCODE* idcode);
 	int32_t getCtrlStat(DP_CTRL_STAT* ctrlStat);
@@ -105,8 +106,8 @@ public:
 		uint32_t getIndex() const { return index; };
 
 	private:
-		AP& ap;
 		uint32_t index;
+		AP& ap;
 		uint32_t lastTAR = 0;
 		AccessSize lastAccessSize = INVALID;
 

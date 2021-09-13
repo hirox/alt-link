@@ -8,6 +8,7 @@ class ARMv6MDWT : public ADIv5::Memory
 {
 public:
 	ARMv6MDWT(const Memory& memory) : Memory(memory) {}
+	virtual ~ARMv6MDWT() {}
 
 	int32_t getPC(uint32_t* pc);
 	void printPC();

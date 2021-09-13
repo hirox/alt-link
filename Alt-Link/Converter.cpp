@@ -22,14 +22,14 @@ static void toArray(const std::string& hex, T* output)
 	std::stringstream stream;
 
 	uint32_t offset = 0;
-	const uint32_t value_length = sizeof(T::value_type) * 2;
+	const uint32_t value_length = sizeof(typename T::value_type) * 2;
 	while (offset < hex.length())
 	{
 		uint64_t data;
 		stream << std::hex << hex.substr(offset, value_length);
 		stream >> std::hex >> data;
 		stream.clear();
-		output->push_back(static_cast<T::value_type>(data));
+		output->push_back(static_cast<typename T::value_type>(data));
 		offset += value_length;
 	}
 }

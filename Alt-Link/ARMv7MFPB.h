@@ -69,7 +69,7 @@ private:
 private:
 	bool initialized;
 	FP_CTRL ctrl;
-	FP_REMAP remap;
+	//FP_REMAP remap;
 	std::vector<FP_COMP> bpList;
 
 	int32_t findBreakPoint(uint32_t addr);

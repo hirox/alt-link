@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <vector>
+#include <errno.h>
 
 class TargetInterface
 {

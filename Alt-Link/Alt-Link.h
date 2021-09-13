@@ -3,11 +3,12 @@
 #include "CMSIS-DAP.h"
 #include "ADIv5.h"
 #include "ADIv5TI.h"
+#include "HIDDevice.h"
 
 class AltLink {
 public:
 	class Device {
-		CMSISDAP::DeviceInfo info;
+		HIDDevice::Info info;
 		CMSISDAP::ConnectionType connectionType;
 		bool opened;
 		bool scanned;
@@ -92,12 +93,12 @@ public:
 		}
 
 	public:
-		Device(CMSISDAP::DeviceInfo _info)
+		Device(HIDDevice::Info _info)
 			: info(_info), opened(false), scanned(false), adi(nullptr), dap(nullptr), ti(nullptr),
 			connectionType(CMSISDAP::SWJ_SWD) {}
 
-		errno_t open() {
-			dap = CMSISDAP::open(info);
+		errno_t open(HIDDevice* hid_device) {
+			dap = std::make_shared<CMSISDAP>(hid_device, info);
 			if (dap == nullptr)
 			{
 				_ERRPRT("Failed to open CMSIS-DAP device.\n");
@@ -227,29 +228,28 @@ public:
 
 		std::shared_ptr<CMSISDAP> getDAP() { return dap; }
 		std::shared_ptr<ADIv5> getADI() { return adi; }
-		CMSISDAP::DeviceInfo& getDeviceInfo() { return info; }
+		HIDDevice::Info& getDeviceInfo() { return info; }
 	};
 
 private:
 	std::vector<std::shared_ptr<Device>> devices;
 
 public:
-	errno_t enumerate() {
+	errno_t enumerate(HIDDevice* hid_device) {
 		// close all opened devices
 		devices.clear();
 
-		std::vector<CMSISDAP::DeviceInfo> info;
-		errno_t ret = CMSISDAP::enumerate(&info);
-		if (ret != OK)
+		auto info = hid_device->enumerate();
+		if (info.size() == 0)
 		{
-			_ERRPRT("Failed to enumerate device. (0x%08x)\n", ret);
-			return ret;
+			_ERRPRT("Failed to enumerate device.\n");
+			return ENOENT;
 		}
 
 		for (auto i : info)
 			devices.push_back(std::make_shared<Device>(i));
 
-		return ret;
+		return OK;
 	}
 
 	std::vector<std::shared_ptr<Device>>& getDevices() { return devices; }

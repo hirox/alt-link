@@ -24,7 +24,6 @@
 
 #define _CMSISDAP_DEFAULT_PACKET_SIZE (64 + 1) /* 64 bytes + 1 byte(hid report id) */
 #define _CMSISDAP_MAX_CLOCK (10 * 1000 * 1000) /* Hz */
-#define _CMSISDAP_USB_TIMEOUT 1000             /* ms */
 
 static inline uint32_t buf2LE32(const uint8_t *buf)
 {
@@ -89,69 +88,15 @@ static_assert(CONFIRM_SIZE(TransferRequest, uint32_t));
 #define WCR_TO_TRN(wcr) ((uint32_t)(1 + (3 & ((wcr)) >> 8))) /* 1..4 clocks */
 #define WCR_TO_PRESCALE(wcr) ((uint32_t)(7 & ((wcr))))       /* impl defined */
 
-int32_t CMSISDAP::enumerate(std::vector<DeviceInfo>* devices)
+CMSISDAP::CMSISDAP(HIDDevice* _hid_device, const HIDDevice::Info& info)
+	: hid_device(_hid_device), vid(info.vid), pid(info.pid)
 {
-	if (devices == nullptr)
-		return CMSISDAP_ERR_INVALID_ARGUMENT;
-
-	devices->clear();
-
-	struct hid_device_info *info;
-	struct hid_device_info *infoCur;
-
-	infoCur = info = hid_enumerate(0x0, 0x0);
-	while (infoCur != nullptr) {
-#if 0
-		printf("type: %04hx %04hx\npath: %s\nserial_number: %ls\n", infoCur->vendor_id, infoCur->product_id, infoCur->path, infoCur->serial_number);
-		printf("Manu    : %ls\n", infoCur->manufacturer_string);
-		printf("Product : %ls\n", infoCur->product_string);
-#endif
-		if (infoCur->product_string != NULL &&
-			wcsstr(infoCur->product_string, L"CMSIS-DAP"))
-		{
-			DeviceInfo deviceInfo;
-			deviceInfo.path = infoCur->path;
-			deviceInfo.wproductString = infoCur->product_string;
-			deviceInfo.productString =
-				std::wstring_convert<std::codecvt_utf8<wchar_t>, wchar_t>().to_bytes(deviceInfo.wproductString);
-			deviceInfo.wserial = infoCur->serial_number;
-			deviceInfo.serial =
-				std::wstring_convert<std::codecvt_utf8<wchar_t>, wchar_t>().to_bytes(deviceInfo.wserial);
-			deviceInfo.vid = infoCur->vendor_id;
-			deviceInfo.pid = infoCur->product_id;
-			devices->push_back(deviceInfo);
-		}
-		infoCur = infoCur->next;
-	}
-
-	if (info != NULL)
-	{
-		hid_free_enumeration(info);
-	}
-
-	return OK;
-}
-
-std::shared_ptr<CMSISDAP> CMSISDAP::open(DeviceInfo& info)
-{
-	if (hid_init() != 0)
-	{
-		return std::shared_ptr<CMSISDAP>();
-	}
-
-	hid_device* handle = hid_open(info.vid, info.pid, NULL);
-	if (handle == NULL)
-	{
+	if (hid_device->open(info)) {
+		is_hid_device_open = true;
+	} else {
+		is_hid_device_open = false;
 		_DBGPRT("hid_open failed.\n");
-		return std::shared_ptr<CMSISDAP>();
 	}
-
-	return std::shared_ptr<CMSISDAP>(new CMSISDAP(handle, info.vid, info.pid)); 
-}
-
-CMSISDAP::CMSISDAP(hid_device* handle, uint16_t _vid, uint16_t _pid)
-	: hidHandle(handle), vid(_vid), pid(_pid)
-{
 	dapInfo.packetMaxSize = _CMSISDAP_DEFAULT_PACKET_SIZE;
 }
 
@@ -178,16 +123,12 @@ CMSISDAP::~CMSISDAP()
 		return;
 	}
 
-	hid_close(hidHandle);
-	if (hid_exit() != 0)
-	{
-		return;
-	}
+	hid_device->close();
 }
 
 int32_t CMSISDAP::usbTx(const TxPacket& packet)
 {
-	int ret = hid_write(hidHandle, packet.data(), packet.length());
+	int ret = hid_device->write(packet.data(), packet.length());
 	if (ret == -1)
 		return CMSISDAP_ERR_USBHID_WRITE;
 
@@ -199,7 +140,7 @@ int32_t CMSISDAP::usbRx(RxPacket* rx)
 	if (rx == nullptr)
 		return CMSISDAP_ERR_INVALID_ARGUMENT;
 
-	int ret = hid_read_timeout(hidHandle, rx->data(), rx->length(), _CMSISDAP_USB_TIMEOUT);
+	int ret = hid_device->read(rx->data(), rx->length());
 	if (ret == -1 || ret == 0)
 		return CMSISDAP_ERR_USBHID_TIMEOUT;
 
@@ -896,7 +837,7 @@ int32_t CMSISDAP::getJtagIDCODEs(std::vector<JTAG_IDCODE>* idcodes)
 
 	for (uint32_t i = 0; i < num; i++)
 	{
-		JTAG_IDCODE idcode = { 0 };
+		JTAG_IDCODE idcode = { };
 		for (uint32_t j = 0; j < 4; j++)
 		{
 			uint8_t value;
@@ -1036,7 +977,7 @@ int32_t CMSISDAP::sendTms(uint8_t cycles, uint8_t tms, uint8_t tdi, uint8_t* tdo
 	for (uint32_t i = 0; i < 8; i++)
 		in[i] = tdi;
 	
-	SequenceInfo info = { 0 };
+	SequenceInfo info = { };
 	info.cycles = ((cycles == 64) ? 0 : cycles);
 	info.TMS = tms ? 1 : 0;
 	info.TDO = tdo ? 1 : 0;
@@ -1291,7 +1232,7 @@ int32_t CMSISDAP::apWrite(uint32_t reg, uint32_t val)
 
 int32_t CMSISDAP::dpapRead(bool dp, uint32_t reg, uint32_t *data)
 {
-	TransferRequest req = { 0 };
+	TransferRequest req = { };
 
 	req.setRead();
 	if (dp)
@@ -1336,7 +1277,7 @@ int32_t CMSISDAP::dpapRead(bool dp, uint32_t reg, uint32_t *data)
 
 int32_t CMSISDAP::dpapWrite(bool dp, uint32_t reg, uint32_t data)
 {
-	TransferRequest req = { 0 };
+	TransferRequest req = { };
 
 	req.setWrite();
 	if (dp)

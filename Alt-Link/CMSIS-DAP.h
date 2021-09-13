@@ -1,44 +1,20 @@
 
 #pragma once
 
-#if defined(_WIN32)
-#pragma comment(lib, "setupapi.lib")
-#if defined(_DEBUG)
-#pragma comment(lib, "hidapid.lib")
-#else
-#pragma comment(lib, "hidapi.lib")
-#endif
-#endif
-#include <hidapi.h>
 #include <string>
 #include <vector>
 #include <memory>
 
 #include "DAP.h"
+#include "HIDDevice.h"
 
 class CMSISDAP : public DAP
 {
 public:
-	struct DeviceInfo
-	{
-		std::string path;
-		std::string productString;
-		std::string serial;
-		std::wstring wproductString;
-		std::wstring wserial;
-		uint16_t vid;
-		uint16_t pid;
-
-		template <class Archive>
-		void serialize(Archive & ar)
-		{
-			ar(CEREAL_NVP(path), CEREAL_NVP(productString), CEREAL_NVP(serial), CEREAL_NVP(vid), CEREAL_NVP(pid));
-		}
-	};
-	static int32_t enumerate(std::vector<DeviceInfo>* devices);
-	static std::shared_ptr<CMSISDAP> open(DeviceInfo& info);
+	CMSISDAP(HIDDevice *_hid_device, const HIDDevice::Info& info);
 	virtual ~CMSISDAP();
 
+	bool is_open() { return is_hid_device_open; };
 	int32_t initialize(void);
 	int32_t setSpeed(uint32_t speed);
 	int32_t scanJtagDevices();
@@ -126,9 +102,6 @@ public:
 	DapInfo& getDapInfo() { return dapInfo; }
 
 private:
-	CMSISDAP();
-	CMSISDAP(hid_device* handle, uint16_t _vid, uint16_t _pid);
-
 	enum CMD {
 		CMD_INFO = 0x00,
 		CMD_LED = 0x01,
@@ -191,11 +164,12 @@ private:
 	};
 	static_assert(CONFIRM_UINT32(JTAG_IDCODE));
 
-	hid_device *hidHandle;
+	bool is_hid_device_open = false;
+	HIDDevice *hid_device;
 	DapInfo dapInfo;
-	uint32_t ap_bank_value;
-	uint16_t pid;
+	//uint32_t ap_bank_value;
 	uint16_t vid;
+	uint16_t pid;
 
 	uint8_t dapIndex;
 

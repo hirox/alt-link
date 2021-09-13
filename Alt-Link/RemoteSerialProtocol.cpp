@@ -113,6 +113,7 @@ void RemoteSerialProtocol::processBreakWatchPoint(const std::string& payload)
 
 	int32_t kind;
 	auto delimiter2 = Converter::extract(payload, delimiter1 + 1, ';', true, &kind);
+	(void) delimiter2;
 
 	switch (payload[1])
 	{
@@ -258,6 +259,7 @@ void RemoteSerialProtocol::packetReceived(const std::string& payload)
 		}
 		uint8_t signal;
 		uint8_t result = targetInterface.step(&signal);
+		(void) result;
 		sendPacket(makePacket("S" + Converter::toHex(signal)));
 		break;
 	}

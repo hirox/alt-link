@@ -10,6 +10,84 @@
 #include "ADIv5TI.h"
 #include "RspServer.h"
 #include "HttpServer.h"
+#include "HIDDevice.h"
+
+#if defined(_WIN32)
+#pragma comment(lib, "setupapi.lib")
+#if defined(_DEBUG)
+#pragma comment(lib, "hidapid.lib")
+#else
+#pragma comment(lib, "hidapi.lib")
+#endif
+#endif
+
+#define _CMSISDAP_USB_TIMEOUT 1000             /* ms */
+
+class HIDApi : public HIDDevice {
+public:
+	virtual std::vector<Info> enumerate() override {
+		std::vector<Info> ret = {};
+
+		struct hid_device_info *info;
+		struct hid_device_info *infoCur;
+
+		infoCur = info = hid_enumerate(0x0, 0x0);
+		while (infoCur != nullptr) {
+#if 0
+			printf("type: %04hx %04hx\npath: %s\nserial_number: %ls\n", infoCur->vendor_id, infoCur->product_id, infoCur->path, infoCur->serial_number);
+			printf("Manu    : %ls\n", infoCur->manufacturer_string);
+			printf("Product : %ls\n", infoCur->product_string);
+#endif
+			if (infoCur->product_string != NULL &&
+				wcsstr(infoCur->product_string, L"CMSIS-DAP"))
+			{
+				HIDDevice::Info deviceInfo;
+				deviceInfo.path = infoCur->path;
+				deviceInfo.wproductString = infoCur->product_string;
+				deviceInfo.productString =
+					std::wstring_convert<std::codecvt_utf8<wchar_t>, wchar_t>().to_bytes(deviceInfo.wproductString);
+				deviceInfo.wserial = infoCur->serial_number;
+				deviceInfo.serial =
+					std::wstring_convert<std::codecvt_utf8<wchar_t>, wchar_t>().to_bytes(deviceInfo.wserial);
+				deviceInfo.vid = infoCur->vendor_id;
+				deviceInfo.pid = infoCur->product_id;
+				ret.push_back(deviceInfo);
+			}
+			infoCur = infoCur->next;
+		}
+
+		if (info != NULL)
+		{
+			hid_free_enumeration(info);
+		}
+
+		return ret;
+	};
+
+	virtual bool open(const Info& info) override {
+		hidHandle = hid_open(info.vid, info.pid, NULL);
+		return hidHandle != nullptr;
+	};
+
+	virtual void close() override {
+		hid_close(hidHandle);
+		if (hid_exit() != 0)
+		{
+			return;
+		}
+	};
+
+	virtual int write(const uint8_t* data, size_t length) override {
+		return hid_write(hidHandle, data, length);
+	};
+
+	virtual int read(uint8_t* data, size_t length) override {
+		return hid_read_timeout(hidHandle, data, length, _CMSISDAP_USB_TIMEOUT);
+	};
+
+private:
+	hid_device* hidHandle;
+};
 
 void dump(ADIv5TI& ti, uint64_t start, uint32_t len)
 {
